@@ -1,0 +1,530 @@
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
+use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
+use plonky2x::frontend::ecc::ed25519::gadgets::verify::EDDSABatchVerify;
+use plonky2x::frontend::uint::uint64::U64Variable;
+use plonky2x::frontend::vars::U32Variable;
+use plonky2x::prelude::{
+    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, PlonkParameters,
+    Variable,
+};
+
+use super::shared::TendermintHeader;
+use super::validator::TendermintValidator;
+use super::voting::TendermintVoting;
+use crate::consts::{HASH_SIZE, HEADER_PROOF_DEPTH, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
+use crate::variables::*;
+
+pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
+    /// Extract the header hash from the signed message from a validator. The location of the
+    /// header hash in the signed message depends on whether the round is 0 for the message.
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        expected_header_hash: Bytes32Variable,
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable;
+
+    /// Verify the header hash of the previous block matches the new block's parent hash.
+    fn verify_prev_header_in_header(
+        &mut self,
+        header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
+        last_block_id_proof: &BlockIDInclusionProofVariable,
+    );
+
+    /// Verify the next validators hash in the previous block matches the new block's validators hash.
+    fn verify_prev_header_next_validators_hash(
+        &mut self,
+        new_validators_hash: TendermintHashVariable,
+        prev_header: &TendermintHashVariable,
+        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+    );
+
+    /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
+    /// header's validators set signed on a message that includes the header hash.
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        round_present: &BoolVariable,
+    );
+
+    /// Compute the validators hash from the necessary fields. If a validator is not enabled, then
+    /// do not include it in the hash.
+    fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>,
+    ) -> TendermintHashVariable;
+
+    /// Verify the validators from the target block marked present_on_trusted_header are present on
+    /// the trusted header.
+    fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        trusted_header: TendermintHashVariable,
+        trusted_validator_hash_proof: &HashInclusionProofVariable,
+        trusted_validator_hash_fields: &ArrayVariable<
+            ValidatorHashFieldVariable,
+            VALIDATOR_SET_SIZE_MAX,
+        >,
+    );
+
+    /// Assert the voting power of the included validators is greater than the threshold
+    /// (threshold_numerator / threshold_denominator).
+    fn verify_voting_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
+        include_in_check: &[BoolVariable],
+    );
+
+    /// Sequentially verify a Tendermint consensus block. Verify that a) the next validators hash in
+    /// the previous block matches the current block's validators hash, b) the header hash
+    /// of the previous block matches the current block's parent hash and c) 2/3 of the validators
+    /// in the current block's validators hash signed the current block.
+    ///
+    /// Note: Only used if a satisfying pair of blocks for skipping intermediate verification is not
+    /// found, which is extremely rare.
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        prev_header: &TendermintHashVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+        last_block_id_proof: &BlockIDInclusionProofVariable,
+        round_present: &BoolVariable,
+    );
+
+    /// Verify a Tendermint block that is non-sequential with the trusted block. At least 1/3 of the
+    /// stake on the new block must be from validators on the trusted block to skip intermediate
+    /// verification. Additionally, the new block must have 2/3 of the validators signed on it.
+    ///
+    /// Note: Skip verification is valid while the time elapsed between the trusted block and the
+    /// new block is less than the unbonding period. This is checked in the smart contract.
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        header_height_proof: &HeightProofVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        round_present: &BoolVariable,
+        trusted_header: TendermintHashVariable,
+        trusted_validator_hash_proof: &HashInclusionProofVariable,
+        trusted_validator_hash_fields: &ArrayVariable<
+            ValidatorHashFieldVariable,
+            VALIDATOR_SET_SIZE_MAX,
+        >,
+    );
+}
+
+impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        expected_header_hash: Bytes32Variable,
+        round_present_in_message: BoolVariable,
+    ) -> BoolVariable {
+        // If the round is missing, the hash starts at index 16.
+        const MISSING_ROUND_START_IDX: usize = 16;
+        let round_missing_header: Bytes32Variable =
+            message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
+
+        // If the round is present, the hash starts at index 25.
+        const INCLUDING_ROUND_START_IDX: usize = 25;
+        let round_present_header: Bytes32Variable =
+            message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
+
+        // Select the correct header hash based on whether the round is present in the message.
+        let computed_header = self.select(
+            round_present_in_message,
+            round_present_header,
+            round_missing_header,
+        );
+
+        // Assert the computed header hash matches the expected header hash.
+        self.is_equal(computed_header, expected_header_hash)
+    }
+
+    fn verify_prev_header_in_header(
+        &mut self,
+        header: &TendermintHashVariable,
+        prev_header: TendermintHashVariable,
+        last_block_id_proof: &BlockIDInclusionProofVariable,
+    ) {
+        let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
+
+        // Assert the last block id came from this header.
+        let header_from_last_block_id_proof = self.get_root_from_merkle_proof(
+            last_block_id_proof,
+            &last_block_id_path.try_into().unwrap(),
+        );
+        self.assert_is_equal(header_from_last_block_id_proof, *header);
+
+        // Assert the previous header from the last block id proof matches the previous header.
+        let extracted_prev_header_hash: Bytes32Variable =
+            last_block_id_proof.leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(prev_header, extracted_prev_header_hash);
+    }
+
+    fn verify_prev_header_next_validators_hash(
+        &mut self,
+        new_validators_hash: TendermintHashVariable,
+        prev_header: &TendermintHashVariable,
+        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+    ) {
+        let next_val_hash_path = ArrayVariable::<BoolVariable, HEADER_PROOF_DEPTH>::new(vec![
+            self._false(),
+            self._false(),
+            self._false(),
+            self._true(),
+        ]);
+
+        // Assert the root of the next validators hash proof matches the prev header hash.
+        let computed_prev_header_root = self.get_root_from_merkle_proof(
+            prev_header_next_validators_hash_proof,
+            &next_val_hash_path,
+        );
+        self.assert_is_equal(computed_prev_header_root, *prev_header);
+
+        // Assert the new validators hash matches the next validators' hash of the previous header.
+        let extracted_prev_header_next_validators_hash =
+            prev_header_next_validators_hash_proof.leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(
+            new_validators_hash,
+            extracted_prev_header_next_validators_hash,
+        );
+    }
+
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        round_present: &BoolVariable,
+    ) {
+        let false_t = self._false();
+        let true_t = self._true();
+
+        // Extract the necessary data for verifying the validators' signatures.
+        let (mut signed, mut messages, mut message_byte_lengths, mut signatures, mut pubkeys) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for v in &validators.data {
+            signed.push(v.signed);
+            messages.push(v.message);
+            message_byte_lengths.push(U32Variable(v.message_byte_length));
+            signatures.push(v.signature.clone());
+            pubkeys.push(v.pubkey.clone());
+        }
+
+        // Verify the signatures of the validators that signed the header.
+        self.conditional_batch_eddsa_verify(
+            ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(signed.clone()),
+            ArrayVariable::<U32Variable, VALIDATOR_SET_SIZE_MAX>::new(message_byte_lengths),
+            ArrayVariable::<
+                BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>,
+                VALIDATOR_SET_SIZE_MAX,
+            >::new(messages),
+            ArrayVariable::<EDDSASignatureTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(signatures),
+            ArrayVariable::<AffinePointTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
+        );
+
+        // Compute the validators hash of the validators from the necessary fields.
+        let validator_hash_fields: Vec<ValidatorHashFieldVariable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| ValidatorHashFieldVariable {
+                pubkey: v.pubkey.clone(),
+                voting_power: v.voting_power,
+                validator_byte_length: v.validator_byte_length,
+                enabled: v.enabled,
+            })
+            .collect();
+        let computed_validators_hash =
+            self.compute_validators_hash(&ArrayVariable::<
+                ValidatorHashFieldVariable,
+                VALIDATOR_SET_SIZE_MAX,
+            >::new(validator_hash_fields));
+
+        // Assert the computed validator hash matches the expected validator hash.
+        let extracted_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(extracted_hash, computed_validators_hash);
+
+        // Assert signed validators comprise at least 2/3 of the total voting power.
+        let threshold_numerator = self.constant::<U64Variable>(2);
+        let threshold_denominator = self.constant::<U64Variable>(3);
+        self.verify_voting_threshold(
+            validators.clone(),
+            &threshold_numerator,
+            &threshold_denominator,
+            &signed,
+        );
+
+        // Verify each validator's signature is valid.
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            // If the validator is signed, assert it is enabled.
+            let enabled_and_signed = self.and(validators[i].enabled, validators[i].signed);
+            self.assert_is_equal(validators[i].signed, enabled_and_signed);
+
+            // Verify every signed validator's message includes the header hash.
+            let hash_in_message =
+                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
+            let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
+            self.assert_is_equal(hash_in_message_and_signed, signed[i]);
+        }
+
+        // Assert the validators hash came from this header.
+        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let header_from_validator_root_proof = self
+            .get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.try_into().unwrap());
+        self.assert_is_equal(*header, header_from_validator_root_proof);
+    }
+
+    fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>,
+    ) -> TendermintHashVariable {
+        // Extract the necessary fields.
+        let byte_lengths: Vec<Variable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.validator_byte_length)
+            .collect();
+        let marshalled_validators: Vec<MarshalledValidatorVariable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
+            .collect();
+        let validators_enabled: Vec<BoolVariable> =
+            validators.as_vec().iter().map(|v| v.enabled).collect();
+
+        // Compute the validators hash of the validator set.
+        self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
+            &marshalled_validators,
+            &byte_lengths,
+            validators_enabled,
+        )
+    }
+
+    fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        trusted_header: TendermintHashVariable,
+        trusted_validator_hash_proof: &HashInclusionProofVariable,
+        trusted_validator_hash_fields: &ArrayVariable<
+            ValidatorHashFieldVariable,
+            VALIDATOR_SET_SIZE_MAX,
+        >,
+    ) {
+        let false_t = self._false();
+        let true_t = self._true();
+
+        // Get the header from the validator hash merkle proof
+        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
+            trusted_validator_hash_proof,
+            &val_hash_path.try_into().unwrap(),
+        );
+
+        // Assert the validator hash proof matches the trusted header
+        self.assert_is_equal(header_from_validator_root_proof, trusted_header);
+
+        // Compute the validators hash of the trusted block from the necessary fields.
+        let computed_val_hash = self.compute_validators_hash(trusted_validator_hash_fields);
+
+        // Extract the expected validators hash of the trusted header from the valid validators hash proof.
+        let expected_val_hash = trusted_validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+
+        self.assert_is_equal(computed_val_hash, expected_val_hash);
+
+        // If a validator is marked present_on_trusted_header, it should be marked as signed.
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let present_and_signed = self.and(
+                validators[i].present_on_trusted_header,
+                validators[i].signed,
+            );
+
+            self.assert_is_equal(validators[i].present_on_trusted_header, present_and_signed);
+        }
+
+        // Verify all validators marked as present on the trusted header are in fact so.
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let mut present_on_trusted_header = self._false();
+
+            // Check if a validator on the target header is present on the trusted header.
+            for j in 0..VALIDATOR_SET_SIZE_MAX {
+                let pubkey_match_idx = self.is_equal(
+                    validators[i].pubkey.clone(),
+                    trusted_validator_hash_fields[j].pubkey.clone(),
+                );
+                present_on_trusted_header = self.or(present_on_trusted_header, pubkey_match_idx);
+            }
+
+            // Verify the validator is marked present on the trusted header if and only if it is.
+            let is_present = self.and(
+                present_on_trusted_header,
+                validators[i].present_on_trusted_header,
+            );
+            self.assert_is_equal(validators[i].present_on_trusted_header, is_present);
+        }
+
+        let present_on_trusted_header: Vec<BoolVariable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.present_on_trusted_header)
+            .collect();
+
+        // Assert validators from the trusted block comprise at least 1/3 of the total voting power
+        // on the target block.
+        let threshold_numerator = self.constant::<U64Variable>(1);
+        let threshold_denominator = self.constant::<U64Variable>(3);
+        self.verify_voting_threshold(
+            validators.clone(),
+            &threshold_numerator,
+            &threshold_denominator,
+            &present_on_trusted_header,
+        );
+    }
+
+    fn verify_voting_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        threshold_numerator: &U64Variable,
+        threshold_denominator: &U64Variable,
+        include_in_check: &[BoolVariable],
+    ) {
+        assert_eq!(validators.as_vec().len(), include_in_check.len());
+
+        let validator_voting_power: Vec<U64Variable> =
+            validators.as_vec().iter().map(|v| v.voting_power).collect();
+
+        // Compute the total voting power of the entire validator set.
+        let total_voting_power =
+            self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
+
+        // Compute whether the voting power of the included validators is greater than the threshold.
+        let gte_threshold = self.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
+            &validator_voting_power,
+            include_in_check,
+            &total_voting_power,
+            threshold_numerator,
+            threshold_denominator,
+        );
+
+        // Assert the voting power of the included validators is greater than the threshold.
+        let true_v = self._true();
+        self.assert_is_equal(gte_threshold, true_v);
+    }
+
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        prev_header: &TendermintHashVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+        last_block_id_proof: &BlockIDInclusionProofVariable,
+        round_present: &BoolVariable,
+    ) {
+        // Verify the new Tendermint consensus block.
+        self.verify_header(validators, header, validator_hash_proof, round_present);
+
+        // Verify the previous header hash in the new header matches the previous header.
+        self.verify_prev_header_in_header(header, *prev_header, last_block_id_proof);
+
+        // Verify the next validators hash in the previous block matches the new validators hash.
+        let new_validators_hash: Bytes32Variable =
+            validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+        self.verify_prev_header_next_validators_hash(
+            new_validators_hash,
+            prev_header,
+            prev_header_next_validators_hash_proof,
+        );
+    }
+
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+        &mut self,
+        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        header: &TendermintHashVariable,
+        header_height_proof: &HeightProofVariable,
+        validator_hash_proof: &HashInclusionProofVariable,
+        round_present: &BoolVariable,
+        trusted_header: TendermintHashVariable,
+        trusted_validator_hash_proof: &HashInclusionProofVariable,
+        trusted_validator_hash_fields: &ArrayVariable<
+            ValidatorHashFieldVariable,
+            VALIDATOR_SET_SIZE_MAX,
+        >,
+    ) {
+        // Verify the validators from the target block marked present_on_trusted_header
+        // are present on the trusted header, and comprise at least 1/3 of the total voting power
+        // on the target block.
+        self.verify_trusted_validators(
+            validators,
+            trusted_header,
+            trusted_validator_hash_proof,
+            trusted_validator_hash_fields,
+        );
+
+        // Verify the target Tendermint consensus block.
+        self.verify_header(validators, header, validator_hash_proof, round_present);
+
+        // Verify the target block's height is correct.
+        self.verify_block_height(
+            *header,
+            &header_height_proof.proof,
+            &header_height_proof.height,
+            header_height_proof.enc_height_byte_length,
+        )
+    }
+}
+
+// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
+// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
+#[cfg(test)]
+pub(crate) mod tests {
+    use ethers::types::H256;
+    use plonky2x::prelude::DefaultBuilder;
+    use subtle_encoding::hex;
+
+    use super::*;
+    use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+
+    #[test]
+    fn test_verify_hash_in_message() {
+        // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
+        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
+        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
+        // No round exists in present the message that was signed above
+
+        env_logger::try_init().unwrap_or_default();
+
+        // Define the circuit
+        let mut builder = DefaultBuilder::new();
+        let message = builder.read::<ValidatorMessageVariable>();
+        let header_hash = builder.read::<TendermintHashVariable>();
+        let round_present_in_message = builder.read::<BoolVariable>();
+
+        let verified =
+            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+
+        builder.write(verified);
+        let circuit = builder.build();
+
+        let header_hash =
+            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
+                .unwrap();
+        let header_hash_h256 = H256::from_slice(&header_hash);
+        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
+        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+        let mut input = circuit.input();
+        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
+        input.write::<TendermintHashVariable>(header_hash_h256);
+        input.write::<BoolVariable>(false);
+        let (_, mut output) = circuit.prove(&input);
+        let verified = output.read::<BoolVariable>();
+        assert!(verified);
+    }
+}
