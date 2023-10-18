@@ -78,7 +78,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let trusted_block = input_stream.read_value::<U64Variable>();
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
-        let mut data_fetcher = InputDataFetcher::new();
+        let mut data_fetcher = InputDataFetcher::default();
         let result = data_fetcher
             .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
                 trusted_block,
@@ -200,7 +200,6 @@ mod tests {
     ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
 
         let mut builder = DefaultBuilder::new();
 

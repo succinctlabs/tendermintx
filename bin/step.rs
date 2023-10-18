@@ -17,7 +17,7 @@
 use std::env;
 
 use plonky2x::backend::function::Plonky2xFunction;
-use zk_tendermint::step::StepCircuit;
+use tendermintx::step::StepCircuit;
 
 fn main() {
     let env_validator_set_size_max = env::var("VALIDATOR_SET_SIZE_MAX").unwrap_or(0.to_string());

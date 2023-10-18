@@ -137,8 +137,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
-
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
@@ -307,8 +305,7 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia block:
-        env::set_var("RPC_MOCHA_4", "fixture"); // Use fixture during testing
-        let input_data_fetcher = InputDataFetcher::new();
+        let input_data_fetcher = InputDataFetcher::default();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let header =

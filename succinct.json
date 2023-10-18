@@ -1,0 +1,19 @@
+{
+    "$schema": "https://raw.githubusercontent.com/succinctlabs/succinctx/main/assets/schema.json",
+    "entrypoints": [
+        {
+            "name": "step",
+            "framework": "plonky2x",
+            "baseDir": ".",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin step --release build && mv ./target/release/step ./build/step",
+            "proveCommand": "RUST_LOG=info ./build/step prove input.json"
+        },
+        {
+            "name": "skip",
+            "framework": "plonky2x",
+            "baseDir": ".",
+            "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin skip --release build && mv ./target/release/skip ./build/skip",
+            "proveCommand": "RUST_LOG=info ./build/skip prove input.json"
+        }
+    ]
+}

@@ -1,4 +1,5 @@
 /target
+/target/*
 .DS_STORE
 .env
 build/

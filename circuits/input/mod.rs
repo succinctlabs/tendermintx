@@ -27,41 +27,46 @@ use crate::input::conversion::{validator_hash_field_from_block, validators_from_
 use crate::variables::*;
 
 pub enum InputDataMode {
-    Rpc(String),
+    Rpc,
     Fixture,
 }
 
 pub struct InputDataFetcher {
     pub mode: InputDataMode,
+    pub url: String,
+    pub fixture_path: String,
     pub proof_cache: HashMap<Hash, Vec<Proof>>,
     pub save: bool,
-    pub fixture_path: String,
 }
 
 impl Default for InputDataFetcher {
     fn default() -> Self {
-        Self::new()
+        dotenv::dotenv().ok();
+
+        let url = env::var("CIRCUIT_RPC_URL").expect("CIRCUIT_RPC_URL is not set in .env");
+
+        Self::new(&url, "./circuits/fixtures/mocha-4")
     }
 }
 
 impl InputDataFetcher {
-    pub fn new() -> Self {
-        dotenv::dotenv().ok();
-        let url = env::var("RPC_MOCHA_4").expect("RPC_MOCHA_4 is not set in .env");
-
-        let mode = if url.is_empty() || url == "fixture" {
-            println!("Using fixture mode for data fetcher");
-            InputDataMode::Fixture
-        } else {
-            println!("Using rpc mode for data fetch with rpc {:?}", url.as_str());
-            InputDataMode::Rpc(url.clone())
-        };
+    pub fn new(url: &str, fixture_path: &str) -> Self {
+        let mut mode;
+        #[cfg(test)]
+        {
+            mode = InputDataMode::Fixture;
+        }
+        #[cfg(not(test))]
+        {
+            mode = InputDataMode::Rpc;
+        }
 
         Self {
             mode,
+            url: url.to_string(),
+            fixture_path: fixture_path.to_string(),
             proof_cache: HashMap::new(),
             save: false,
-            fixture_path: "./fixtures/mocha-4".to_string(),
         }
     }
 
@@ -75,11 +80,12 @@ impl InputDataFetcher {
             self.fixture_path,
             block_number.to_string().as_str()
         );
+
         let fetched_result = match &self.mode {
-            InputDataMode::Rpc(url) => {
+            InputDataMode::Rpc => {
                 let query_url = format!(
                     "{}/signed_block?height={}",
-                    url,
+                    self.url,
                     block_number.to_string().as_str()
                 );
                 info!("Querying url {:?}", query_url.as_str());
@@ -112,10 +118,10 @@ impl InputDataFetcher {
             block_number.to_string().as_str()
         );
         let fetched_result = match &self.mode {
-            InputDataMode::Rpc(url) => {
+            InputDataMode::Rpc => {
                 let query_url = format!(
                     "{}/header?height={}",
-                    url,
+                    self.url,
                     block_number.to_string().as_str()
                 );
                 info!("Querying url {:?}", query_url.as_str());

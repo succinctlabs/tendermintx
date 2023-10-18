@@ -9,7 +9,7 @@ use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, SignedBlock};
-use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
 use crate::variables::*;
 
 pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
@@ -99,7 +99,7 @@ pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
             message_byte_length: F::from_canonical_usize(32),
             voting_power: 0u64,
-            validator_byte_length: F::from_canonical_usize(38),
+            validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
             enabled: false,
             signed: false,
             present_on_trusted_header: false, // This field ignored for this case
@@ -151,7 +151,7 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
                     .expect("failed to create verification key"),
             ),
             voting_power: 0u64,
-            validator_byte_length: F::from_canonical_usize(38),
+            validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
             enabled: false,
         });
     }
