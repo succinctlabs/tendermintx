@@ -51,6 +51,7 @@ impl Default for InputDataFetcher {
 
 impl InputDataFetcher {
     pub fn new(url: &str, fixture_path: &str) -> Self {
+        #[allow(unused_mut)]
         let mut mode;
         #[cfg(test)]
         {
