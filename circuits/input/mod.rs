@@ -43,7 +43,7 @@ impl Default for InputDataFetcher {
     fn default() -> Self {
         dotenv::dotenv().ok();
 
-        let url = env::var("CIRCUIT_RPC_URL").expect("CIRCUIT_RPC_URL is not set in .env");
+        let url = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
         Self::new(&url, "./circuits/fixtures/mocha-4")
     }
