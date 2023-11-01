@@ -54,7 +54,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             .0
             .to_vec();
 
-        // TODO: Update compressed_point to return a Bytes32Variable
+        // Compress the public key to 32 bytes.
         let compressed_point = self.compress_point(pubkey);
         res.extend_from_slice(&compressed_point.0.as_bytes());
 
@@ -82,14 +82,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         let enc_validator_byte_length = self.add(one, validator_byte_length);
 
-        // TODO: This is a bit unsafe, change curta_sha256_variable to take a Variable instead.
         let input_byte_length = U32Variable::from_variables(self, &[enc_validator_byte_length]);
 
         // Resize the validator bytes to 64 bytes (1 chunk).
         validator_bytes.resize(64, self.zero::<ByteVariable>());
 
-        // Hash the validator bytes, the last chunk is chunk 0.
-        // TODO: Specify in plonky2x that last_chunk is zero-indexed.
+        // Hash the validator bytes.
         self.curta_sha256_variable(&validator_bytes, input_byte_length)
     }
 

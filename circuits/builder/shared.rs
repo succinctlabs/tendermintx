@@ -74,7 +74,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let mut last_seen_non_zero_septet_idx = self.zero();
 
         for i in 0..VARINT_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
+            // Cast with from_variables_unsafe since is_zero_septets[i] is always 0 or 1.
             let is_nonzero_septet =
                 BoolVariable::from_variables_unsafe(&[self.sub(one, is_zero_septets[i].variable)]);
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
