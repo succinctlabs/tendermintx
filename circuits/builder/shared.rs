@@ -39,23 +39,27 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // TODO: Assert the value is less than 2^63 - 1.
         let zero = self.zero::<Variable>();
         let one = self.one::<Variable>();
+        let two = self.constant::<Variable>(L::Field::from_canonical_usize(2));
 
         // The remaining bytes of the serialized validator are the voting power as a "varint".
         // Note: need to be careful regarding U64 and I64 differences.
         let value_bits = self.to_le_bits(*value);
 
         // Check that the MSB of the voting power is zero.
-        self.api.assert_zero(value_bits[value_bits.len() - 1].0 .0);
+        self.assert_is_equal(value_bits[value_bits.len() - 1].variable, zero);
 
         // The septet (7 bit) payloads  of the "varint".
         let septets = (0..VARINT_BYTES_LENGTH_MAX)
             .map(|i| {
-                let mut base = L::Field::ONE;
+                let mut base = one;
                 let mut septet = self.zero::<Variable>();
                 for j in 0..7 {
                     let bit = value_bits[i * 7 + j];
-                    septet = Variable(self.api.mul_const_add(base, bit.0 .0, septet.0));
-                    base *= L::Field::TWO;
+
+                    let bit_val = self.mul(base, bit.variable);
+                    septet = self.add(septet, bit_val);
+
+                    base = self.mul(base, two)
                 }
                 septet
             })
@@ -70,8 +74,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let mut last_seen_non_zero_septet_idx = self.zero();
 
         for i in 0..VARINT_BYTES_LENGTH_MAX {
-            // Ok to cast as BoolVariable since is_zero_septets[i] is 0 or 1 so result is either 0 or 1
-            let is_nonzero_septet = BoolVariable(self.sub(one, is_zero_septets[i].0));
+            // Cast with from_variables_unsafe since is_zero_septets[i] is always 0 or 1.
+            let is_nonzero_septet =
+                BoolVariable::from_variables_unsafe(&[self.sub(one, is_zero_septets[i].variable)]);
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
             last_seen_non_zero_septet_idx =
                 self.select(is_nonzero_septet, idx, last_seen_non_zero_septet_idx);
@@ -112,7 +117,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
             buffer.reverse();
 
             res[i] = ByteVariable::from_variables_unsafe(
-                &buffer.iter().map(|x| x.0).collect::<Vec<Variable>>(),
+                &buffer.iter().map(|x| x.variable).collect::<Vec<Variable>>(),
             );
         }
 
@@ -145,10 +150,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let encoded_height = self.marshal_int64_varint(height);
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
-        // Only one chunk is needed for the encoded height.
-        // Note: This is the maximum number of chunks in the input to the variable SHA circuit.
-        const MAX_NUM_CHUNKS: usize = 1;
-
         // Extend encoded_height to 64 bytes. Variable SHA256 requires the input length in bytes to
         // be equal to the specified MAX_NUM_CHUNKS * 64.
         let mut encoded_height_extended = encoded_height.0.to_vec();
@@ -161,13 +162,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
 
         // Hash the encoded height.
-        let last_chunk = self.constant::<U32Variable>(0);
-        // TODO: Update curta_sha256_varible description to describe MAX_NUM_CHUNKS.
-        let leaf_hash = self.curta_sha256_variable::<MAX_NUM_CHUNKS>(
-            &encoded_height_extended,
-            last_chunk,
-            encoded_height_byte_length,
-        );
+        let leaf_hash =
+            self.curta_sha256_variable(&encoded_height_extended, encoded_height_byte_length);
 
         // Verify the computed block height against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(

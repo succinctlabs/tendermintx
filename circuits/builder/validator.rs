@@ -1,4 +1,4 @@
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurve;
+use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurveGadget;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
@@ -54,20 +54,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             .0
             .to_vec();
 
-        // TODO: Update compressed_point to return a Bytes32Variable
-        let compressed_point = self.api.compress_point(pubkey);
-
-        // Iterate in reverse order because the marshalling expects little-endian
-        // and the bytes are returned as big-endian.
-        for i in (0..32).rev() {
-            let byte_variable = ByteVariable::from_variables_unsafe(
-                &compressed_point.bit_targets[i * 8..(i + 1) * 8]
-                    .iter()
-                    .map(|x| Variable(x.target))
-                    .collect::<Vec<Variable>>(),
-            );
-            res.push(byte_variable);
-        }
+        // Compress the public key to 32 bytes.
+        let compressed_point = self.compress_point(pubkey);
+        res.extend_from_slice(&compressed_point.0.as_bytes());
 
         res.push(self.constant::<ByteVariable>(16u8));
 
@@ -85,7 +74,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         validator: &MarshalledValidatorVariable,
         validator_byte_length: Variable,
     ) -> TendermintHashVariable {
-        let zero = self.zero::<U32Variable>();
         let one = self.one::<Variable>();
 
         // The encoding is as follows in bytes: 0x00 || validatorBytes
@@ -94,18 +82,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         let enc_validator_byte_length = self.add(one, validator_byte_length);
 
-        // TODO: This is a bit unsafe, change curta_sha256_variable to take a Variable instead.
-        let input_byte_length = U32Variable(enc_validator_byte_length);
-
-        // The maximum number of chunks is 1 because the validator byte length is at most 46 bytes.
-        const MAX_NUM_CHUNKS: usize = 1;
+        let input_byte_length = U32Variable::from_variables(self, &[enc_validator_byte_length]);
 
         // Resize the validator bytes to 64 bytes (1 chunk).
         validator_bytes.resize(64, self.zero::<ByteVariable>());
 
-        // Hash the validator bytes, the last chunk is chunk 0.
-        // TODO: Specify in plonky2x that last_chunk is zero-indexed.
-        self.curta_sha256_variable::<MAX_NUM_CHUNKS>(&validator_bytes, zero, input_byte_length)
+        // Hash the validator bytes.
+        self.curta_sha256_variable(&validator_bytes, input_byte_length)
     }
 
     fn hash_validator_set<const VALIDATOR_SET_SIZE_MAX: usize>(

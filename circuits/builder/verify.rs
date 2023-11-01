@@ -4,8 +4,8 @@ use plonky2x::frontend::ecc::ed25519::gadgets::verify::EDDSABatchVerify;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, PlonkParameters,
-    Variable,
+    ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
+    PlonkParameters, Variable,
 };
 
 use super::shared::TendermintHeader;
@@ -214,7 +214,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         for v in &validators.data {
             signed.push(v.signed);
             messages.push(v.message);
-            message_byte_lengths.push(U32Variable(v.message_byte_length));
+            message_byte_lengths.push(U32Variable::from_variables(self, &[v.message_byte_length]));
             signatures.push(v.signature.clone());
             pubkeys.push(v.pubkey.clone());
         }
