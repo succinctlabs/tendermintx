@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use subtle_encoding::hex;
 pub use tendermint::block::Header;
 pub use tendermint::merkle::Hash;
+use tendermint::validator::Set as TendermintValidatorSet;
 /// Source (tendermint-rs): https://github.com/informalsystems/tendermint-rs/blob/e930691a5639ef805c399743ac0ddbba0e9f53da/tendermint/src/merkle.rs#L32
 use tendermint::{
     block::{Commit, CommitSig},
@@ -414,4 +415,50 @@ pub fn non_absent_vote(
         extension: Default::default(),
         extension_signature: None,
     })
+}
+
+/// Determines if a valid skip is possible between start_block and target_block.
+pub fn is_valid_skip(start_block: &SignedBlock, target_block: &SignedBlock) -> bool {
+    let threshold = 1_f64 / 3_f64;
+
+    let mut shared_voting_power = 0;
+
+    let target_block_validator_set = TendermintValidatorSet::new(
+        target_block.validator_set.validators.clone(),
+        target_block.validator_set.proposer.clone(),
+    );
+    let start_block_validator_set = TendermintValidatorSet::new(
+        start_block.validator_set.validators.clone(),
+        start_block.validator_set.proposer.clone(),
+    );
+
+    let target_block_total_voting_power = target_block_validator_set.total_voting_power().value();
+
+    let start_block_validators = start_block_validator_set.validators();
+
+    let mut start_block_idx = 0;
+    let start_block_num_validators = start_block_validators.len();
+
+    // Exit if we have already reached the threshold
+    // TODO: Confirm this is resilient by testing many different cases.
+    while target_block_total_voting_power as f64 * threshold > shared_voting_power as f64
+        && start_block_idx < start_block_num_validators
+    {
+        if let Some(target_block_validator) =
+            target_block_validator_set.validator(start_block_validators[start_block_idx].address)
+        {
+            // Confirm that the validator has signed on block_2
+            for sig in target_block.commit.signatures.iter() {
+                if sig.validator_address().is_some()
+                    && sig.validator_address().unwrap() == target_block_validator.address
+                {
+                    // Add the shared voting power to the validator
+                    shared_voting_power += target_block_validator.power();
+                }
+            }
+        }
+        start_block_idx += 1;
+    }
+
+    target_block_total_voting_power as f64 * threshold <= shared_voting_power as f64
 }
