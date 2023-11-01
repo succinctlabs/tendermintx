@@ -23,6 +23,9 @@ interface ITendermintX {
         uint64 indexed targetBlock
     );
 
+    /// @notice Trusted header not found.
+    error TrustedHeaderNotFound();
+
     /// @notice Latest header not found.
     error LatestHeaderNotFound();
 

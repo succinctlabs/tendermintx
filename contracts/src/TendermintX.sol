@@ -70,7 +70,6 @@ contract TendermintX is ITendermintX {
             abi.encodeWithSelector(
                 this.skip.selector,
                 latestBlock,
-                latestHeader,
                 _targetBlock
             ),
             500000
@@ -81,17 +80,17 @@ contract TendermintX is ITendermintX {
 
     /// @notice Stores the new header for targetBlock.
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
     /// @param _targetBlock The block to skip to.
-    function skip(
-        uint64 _trustedBlock,
-        bytes32 _trustedHeader,
-        uint64 _targetBlock
-    ) external {
+    function skip(uint64 _trustedBlock, uint64 _targetBlock) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
         // Encode the circuit input.
         bytes memory input = abi.encodePacked(
             _trustedBlock,
-            _trustedHeader,
+            trustedHeader,
             _targetBlock
         );
 
@@ -126,11 +125,7 @@ contract TendermintX is ITendermintX {
             stepFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
-            abi.encodeWithSelector(
-                this.step.selector,
-                latestBlock,
-                latestHeader
-            ),
+            abi.encodeWithSelector(this.step.selector, latestBlock),
             500000
         );
         emit StepRequested(latestBlock, latestHeader);
@@ -138,9 +133,13 @@ contract TendermintX is ITendermintX {
 
     /// @notice Stores the new header for _trustedBlock + 1.
     /// @param _trustedBlock The latest block when the request was made.
-    /// @param _trustedHeader The header hash of the latest block when the request was made.
-    function step(uint64 _trustedBlock, bytes32 _trustedHeader) external {
-        bytes memory input = abi.encodePacked(_trustedBlock, _trustedHeader);
+    function step(uint64 _trustedBlock) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        if (trustedHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
+        bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
         bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
