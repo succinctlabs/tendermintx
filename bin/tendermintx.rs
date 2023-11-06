@@ -213,8 +213,8 @@ async fn main() {
     let tendermintx = TendermintX::new(config.address, provider.into());
 
     // The upper limit of the largest skip that can be requested. This is bounded by the unbonding
-    // period, which on Celestia is ~2 weeks, or ~100K blocks. We set this to 10K to be safe, which
-    // is ~1 day.
+    // period, which for most Tendermint chains is ~2 weeks, or ~100K blocks. This is set to 10K to
+    // be safe, which is ~1 day.
     let header_range_max = 10000;
     loop {
         let current_block = tendermintx.latest_block().await.unwrap();
