@@ -14,10 +14,15 @@ path = "bin/step.rs"
 name = "skip"
 path = "bin/skip.rs"
 
+[[bin]]
+name = "tendermintx"
+path = "bin/tendermintx.rs"
+
 [features]
 ci = []
 
 [dependencies]
+alloy-sol-types = "0.4.2"
 anyhow = "1.0.71"
 async-trait = "0.1.73"
 clap = { version = "4.3.18", features = ["derive"] }

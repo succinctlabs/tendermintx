@@ -23,3 +23,21 @@ The circuits are currently available on Succinct X [here](https://alpha.succinct
 
 There are currently TendermintX light clients tracking the following networks on Goerli:
 - [Celestia Mocha-4 Testnet](https://goerli.etherscan.io/address/0x67ea962864cdad3f2202118dc6f65ff510f7bb4d)
+
+## Integrate
+Deploy a `TendermintX` contract.
+```
+forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX
+```
+
+Initialize `TendermintX` contract with genesis parameters from forge script.
+```
+forge script script/TendermintX.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+```
+
+Update .env file with contract address and chain id.
+
+Run `TendermintX` script to update the light client continuously.
+```
+cargo run --bin tendermintx --release
+```

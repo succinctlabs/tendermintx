@@ -1,0 +1,294 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_gateway",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [],
+        "name": "LatestHeaderNotFound",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "ProofBlockRangeTooLarge",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "TargetLessThanLatest",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "TrustedHeaderNotFound",
+        "type": "error"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint64",
+                "name": "blockNumber",
+                "type": "uint64"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "headerHash",
+                "type": "bytes32"
+            }
+        ],
+        "name": "HeadUpdate",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "trustedBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "trustedHeader",
+                "type": "bytes32"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "targetBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "SkipRequested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint64",
+                "name": "trustedBlock",
+                "type": "uint64"
+            },
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "trustedHeader",
+                "type": "bytes32"
+            }
+        ],
+        "name": "StepRequested",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "",
+                "type": "uint64"
+            }
+        ],
+        "name": "blockHeightToHeaderHash",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "gateway",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "height",
+                "type": "uint64"
+            }
+        ],
+        "name": "getHeaderHash",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "latestBlock",
+        "outputs": [
+            {
+                "internalType": "uint64",
+                "name": "",
+                "type": "uint64"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "_targetBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "requestSkip",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "requestStep",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "_height",
+                "type": "uint64"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "_header",
+                "type": "bytes32"
+            }
+        ],
+        "name": "setGenesisHeader",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "_trustedBlock",
+                "type": "uint64"
+            },
+            {
+                "internalType": "uint64",
+                "name": "_targetBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "skip",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "skipFunctionId",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint64",
+                "name": "_trustedBlock",
+                "type": "uint64"
+            }
+        ],
+        "name": "step",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "stepFunctionId",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_gateway",
+                "type": "address"
+            }
+        ],
+        "name": "updateGateway",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
+                "name": "_functionId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "updateSkipId",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
+                "name": "_functionId",
+                "type": "bytes32"
+            }
+        ],
+        "name": "updateStepId",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]
