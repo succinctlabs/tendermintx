@@ -44,19 +44,24 @@ type SkipCalldataTuple = sol! { tuple(uint64, uint64) };
 type SkipInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 fn get_config() -> TendermintXConfig {
-    // TODO: Update function ID's with config.
-    let step_function_id = H256::from_slice(
-        &hex::decode("98a2381f5efeaf7c3e39d749d6f676df1432487578f393161cebd2b03934f43b").unwrap(),
-    );
-    let skip_function_id = H256::from_slice(
-        &hex::decode("b3f1415062a3543bb1c48d9d6a49f9e005fe415d347a5ba63e40bb1235acfd86").unwrap(),
-    );
     let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
     let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
     // TODO: TendermintX on Goerli: https://goerli.etherscan.io/address/#code
     let address = contract_address
         .parse::<Address>()
         .expect("invalid address");
+
+    // Load the function IDs.
+    let step_id_env = env::var("STEP_FUNCTION_ID").expect("STEP_FUNCTION_ID must be set");
+    let step_function_id = H256::from_slice(
+        &hex::decode(step_id_env.strip_prefix("0x").unwrap_or(&step_id_env))
+            .expect("invalid hex for step_function_id, expected 0x prefix"),
+    );
+    let skip_id_env = env::var("SKIP_FUNCTION_ID").expect("SKIP_FUNCTION_ID must be set");
+    let skip_function_id = H256::from_slice(
+        &hex::decode(skip_id_env.strip_prefix("0x").unwrap_or(&skip_id_env))
+            .expect("invalid hex for skip_function_id, expected 0x prefix"),
+    );
 
     TendermintXConfig {
         address,
