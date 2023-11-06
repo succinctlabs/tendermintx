@@ -215,7 +215,7 @@ async fn main() {
     // The upper limit of the largest skip that can be requested. This is bounded by the unbonding
     // period, which for most Tendermint chains is ~2 weeks, or ~100K blocks. This is set to 10K to
     // be safe, which is ~1 day.
-    let header_range_max = 10000;
+    let skip_max = 10000;
     loop {
         let current_block = tendermintx.latest_block().await.unwrap();
 
@@ -225,7 +225,7 @@ async fn main() {
 
         // Subtract 2 blocks to account for the time it takes for a block to be processed by
         // consensus.
-        let max_end_block = std::cmp::min(latest_block - 2, current_block + header_range_max);
+        let max_end_block = std::cmp::min(latest_block - 2, current_block + skip_max);
 
         let target_block =
             find_request_block(&tendermint_rpc_url, current_block, max_end_block).await;
