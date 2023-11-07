@@ -702,11 +702,11 @@ dependencies = [
 [[package]]
 name = "curta"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curta.git#aea75fe417f52fae7aa6be00ed663b712d70361a"
+source = "git+https://github.com/succinctlabs/curta.git?branch=tamir/scalar_mul_mem#328680b5534e2324a755acbbb09671da33460d5e"
 dependencies = [
  "anyhow",
  "bincode",
- "curve25519-dalek 4.1.1",
+ "curve25519-dalek",
  "env_logger 0.9.3",
  "hex",
  "itertools 0.10.5",
@@ -721,43 +721,19 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.0.0"
-source = "git+https://github.com/succinctlabs/curve25519-dalek.git?branch=feature/edwards-point-getters#e2d1bd10d6d772af07cac5c8161cd7655016af6d"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive 0.1.0",
- "fiat-crypto 0.1.20",
- "platforms",
- "rustc_version",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
 version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "curve25519-dalek-derive 0.1.1",
- "fiat-crypto 0.2.2",
+ "curve25519-dalek-derive",
+ "digest 0.10.7",
+ "fiat-crypto",
  "platforms",
  "rustc_version",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/curve25519-dalek.git?branch=feature/edwards-point-getters#e2d1bd10d6d772af07cac5c8161cd7655016af6d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.38",
 ]
 
 [[package]]
@@ -973,6 +949,20 @@ dependencies = [
  "serde",
  "sha2 0.9.9",
  "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7277392b266383ef8396db7fdeb1e77b6c52fed775f5df15bb24f35b72156980"
+dependencies = [
+ "curve25519-dalek",
+ "ed25519",
+ "rand_core",
+ "serde",
+ "sha2 0.10.8",
  "zeroize",
 ]
 
@@ -1440,12 +1430,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 
 [[package]]
 name = "fiat-crypto"
@@ -2818,7 +2802,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#71d75ca3bd45d1d712dbe5bd0a118caaf82427d8"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/curta_sig_verification#28b70cc3b3e4e61566dfebdb229adfb6467c9c49"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2828,10 +2812,10 @@ dependencies = [
  "bincode",
  "clap",
  "curta",
- "curve25519-dalek 4.0.0",
+ "curve25519-dalek",
  "digest 0.10.7",
  "dotenv",
- "ed25519-consensus",
+ "ed25519-dalek",
  "env_logger 0.10.0",
  "ethers",
  "ff",
@@ -2860,7 +2844,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#71d75ca3bd45d1d712dbe5bd0a118caaf82427d8"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/curta_sig_verification#28b70cc3b3e4e61566dfebdb229adfb6467c9c49"
 dependencies = [
  "proc-macro2",
  "quote",

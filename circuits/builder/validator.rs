@@ -1,4 +1,3 @@
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurveGadget;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
