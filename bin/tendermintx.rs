@@ -6,6 +6,7 @@
 use std::env;
 
 use alloy_sol_types::{sol, SolType};
+use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
 use ethers::core::types::Address;
 use ethers::providers::{Http, Provider};
@@ -40,10 +41,8 @@ struct OffchainInput {
     input: String,
 }
 
-type StepCalldataTuple = sol! { tuple(uint64,) };
 type StepInputTuple = sol! { tuple(uint64, bytes32) };
 
-type SkipCalldataTuple = sol! { tuple(uint64, uint64) };
 type SkipInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 impl TendermintXOperator {
@@ -138,11 +137,8 @@ impl TendermintXOperator {
 
         let input = StepInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash));
 
-        let function_signature = "step(uint64)";
-        let function_selector = ethers::utils::id(function_signature).to_vec();
-        let encoded_parameters = StepCalldataTuple::abi_encode_sequence(&(trusted_block,));
-        // Concat function selector and encoded parameters.
-        let function_data = [&function_selector[..], &encoded_parameters[..]].concat();
+        let step_call = StepCall { trusted_block };
+        let function_data = step_call.encode();
 
         self.submit_request(function_data, input, self.config.step_function_id)
             .await;
@@ -158,12 +154,11 @@ impl TendermintXOperator {
         let input =
             SkipInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash, target_block));
 
-        let function_signature = "skip(uint64,uint64)";
-        let function_selector = ethers::utils::id(function_signature).to_vec();
-        let encoded_parameters =
-            SkipCalldataTuple::abi_encode_sequence(&(trusted_block, target_block));
-        // Concat function selector and encoded parameters.
-        let function_data = [&function_selector[..], &encoded_parameters[..]].concat();
+        let skip_call = SkipCall {
+            trusted_block,
+            target_block,
+        };
+        let function_data = skip_call.encode();
 
         self.submit_request(function_data, input, self.config.skip_function_id)
             .await;
