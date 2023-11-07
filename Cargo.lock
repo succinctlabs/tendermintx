@@ -2802,7 +2802,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#1e8ed78f5afd2df49666f9
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/curta_sig_verification#28b70cc3b3e4e61566dfebdb229adfb6467c9c49"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/expose_Ed25519_parameters#3e0b45f7687091dbd891a1f401558dbec1904958"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -2844,7 +2844,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/curta_sig_verification#28b70cc3b3e4e61566dfebdb229adfb6467c9c49"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=kevjue/expose_Ed25519_parameters#3e0b45f7687091dbd891a1f401558dbec1904958"
 dependencies = [
  "proc-macro2",
  "quote",
