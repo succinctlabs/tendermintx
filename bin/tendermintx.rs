@@ -210,6 +210,7 @@ impl TendermintXOperator {
 
 #[tokio::main]
 async fn main() {
+    env::set_var("RUST_LOG", "info");
     dotenv::dotenv().ok();
     env_logger::init();
 
