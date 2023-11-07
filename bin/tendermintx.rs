@@ -141,8 +141,6 @@ impl TendermintXOperator {
 
         let input = StepInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash));
 
-        info!("length of step input: {:?}", input.len());
-
         let function_signature = "step(uint64)";
         let function_selector = ethers::utils::id(function_signature).to_vec();
         let encoded_parameters = StepCalldataTuple::abi_encode_sequence(&(trusted_block,));
@@ -162,8 +160,6 @@ impl TendermintXOperator {
 
         let input =
             SkipInputTuple::abi_encode_packed(&(trusted_block, trusted_header_hash, target_block));
-
-        info!("length of rotate input: {:?}", input.len());
 
         let function_signature = "skip(uint64,uint64)";
         let function_selector = ethers::utils::id(function_signature).to_vec();
