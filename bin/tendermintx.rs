@@ -48,8 +48,6 @@ type SkipInputTuple = sol! { tuple(uint64, bytes32, uint64) };
 
 impl TendermintXOperator {
     pub fn new() -> Self {
-        dotenv::dotenv().ok();
-
         let config = Self::get_config();
 
         let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
