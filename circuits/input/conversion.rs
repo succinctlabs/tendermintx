@@ -1,12 +1,13 @@
-use ed25519_consensus::SigningKey;
-use plonky2x::frontend::ecc::ed25519::gadgets::verify::DUMMY_SIGNATURE;
+use curve25519_dalek::edwards::CompressedEdwardsY;
+use ethers::types::U256;
+use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
+    EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
+};
 use plonky2x::prelude::RichField;
 use tendermint::crypto::default::signature::Verifier;
-use tendermint::crypto::ed25519::VerificationKey;
 use tendermint::crypto::signature::Verifier as _;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
-use tendermint::{private_key, Signature};
 
 use super::tendermint_utils::{non_absent_vote, SignedBlock};
 use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
@@ -33,6 +34,9 @@ pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
             None => continue, // Cannot find matching validator, so we skip the vote
         });
         let val_bytes = validator.hash_bytes();
+        let pubkey =
+            CompressedEdwardsY::try_from(validator.pub_key.ed25519().unwrap().as_bytes()).unwrap();
+
         if block.commit.signatures[i].is_commit() {
             let vote =
                 non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
@@ -46,56 +50,58 @@ pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
 
             let sig = signed_vote.signature();
 
+            let signature_value = EDDSASignatureVariableValue {
+                r: CompressedEdwardsY(sig.as_bytes()[0..32].try_into().unwrap()),
+                s: U256::from_little_endian(&sig.as_bytes()[32..64]),
+            };
+
             // Source: https://github.com/informalsystems/tendermint-rs/blob/bcc0b377812b8e53a02dff156988569c5b3c81a2/tendermint/src/crypto/default/signature.rs#L199-L200
             Verifier::verify(validator.pub_key, &signed_vote.sign_bytes(), sig)
                 .unwrap_or_else(|_| panic!("signature should be valid for validator {}", i));
 
             validators.push(Validator {
-                pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type::<F>(&sig.clone()),
+                pubkey,
+                signature: signature_value,
                 message: message_padded.try_into().unwrap(),
                 message_byte_length: F::from_canonical_usize(signed_vote.sign_bytes().len()),
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
                 signed: true,
-                present_on_trusted_header: false, // This field is ignored in this case
+                present_on_trusted_header: false,
             });
         } else {
+            let signature_value = EDDSASignatureVariableValue {
+                r: CompressedEdwardsY(DUMMY_SIGNATURE[0..32].try_into().unwrap()),
+                s: U256::from_little_endian(&DUMMY_SIGNATURE[32..64]),
+            };
+
             // These are dummy signatures (included in val hash, did not vote)
             validators.push(Validator {
-                pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
-                signature: signature_to_value_type::<F>(
-                    &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
-                ),
-                // TODO: Replace these with correct outputs
+                pubkey,
+                signature: signature_value,
                 message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
                 message_byte_length: F::from_canonical_usize(32),
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
                 signed: false,
-                present_on_trusted_header: false, // This field is ignored in this case
+                present_on_trusted_header: false,
             });
         }
     }
 
     // These are empty signatures (not included in val hash)
     for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = [1u8; 32];
-        let signing_key =
-            private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
-        let signing_key = SigningKey::try_from(signing_key).unwrap();
+        let pubkey = CompressedEdwardsY::from_slice(&DUMMY_PUBLIC_KEY).unwrap();
+        let signature_value = EDDSASignatureVariableValue {
+            r: CompressedEdwardsY(DUMMY_SIGNATURE[0..32].try_into().unwrap()),
+            s: U256::from_little_endian(&DUMMY_SIGNATURE[32..64]),
+        };
 
-        let verification_key = signing_key.verification_key();
         validators.push(Validator {
-            pubkey: pubkey_to_value_type::<F>(
-                &VerificationKey::try_from(verification_key.as_bytes().as_ref())
-                    .expect("failed to create verification key"),
-            ),
-            signature: signature_to_value_type::<F>(
-                &Signature::try_from(DUMMY_SIGNATURE.to_vec()).expect("missing signature"),
-            ),
+            pubkey,
+            signature: signature_value,
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
             message_byte_length: F::from_canonical_usize(32),
             voting_power: 0u64,
@@ -127,8 +133,11 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
             None => continue, // Cannot find matching validator, so we skip the vote
         });
         let val_bytes = validator.hash_bytes();
+        let pubkey =
+            CompressedEdwardsY::try_from(validator.pub_key.ed25519().unwrap().as_bytes()).unwrap();
+
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: pubkey_to_value_type::<F>(&validator.pub_key.ed25519().unwrap()),
+            pubkey,
             voting_power: validator.power(),
             validator_byte_length: F::from_canonical_usize(val_bytes.len()),
             enabled: true,
@@ -139,17 +148,11 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
 
     // These are empty signatures (not included in val hash)
     for _ in val_so_far..VALIDATOR_SET_SIZE_MAX {
-        let priv_key_bytes = [0u8; 32];
-        let signing_key =
-            private_key::Ed25519::try_from(&priv_key_bytes[..]).expect("failed to create key");
-        let signing_key = SigningKey::try_from(signing_key).unwrap();
-        let verification_key = signing_key.verification_key();
+        let pubkey = CompressedEdwardsY::from_slice(&DUMMY_PUBLIC_KEY).unwrap();
+
         // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
-            pubkey: pubkey_to_value_type::<F>(
-                &VerificationKey::try_from(verification_key.as_bytes().as_ref())
-                    .expect("failed to create verification key"),
-            ),
+            pubkey,
             voting_power: 0u64,
             validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
             enabled: false,

@@ -1,18 +1,12 @@
-use num::BigUint;
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
-use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
-pub use plonky2x::frontend::ecc::ed25519::curve::ed25519::Ed25519;
-pub use plonky2x::frontend::ecc::ed25519::field::ed25519_scalar::Ed25519Scalar;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
-    Field, PlonkParameters, RichField, Variable,
+    PlonkParameters, RichField, Variable,
 };
-use tendermint::Signature;
 
 use crate::consts::{
     HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
@@ -65,7 +59,7 @@ pub type BlockIDInclusionProofVariable =
 #[value_name(Validator)]
 pub struct ValidatorVariable {
     pub pubkey: CompressedEdwardsYVariable,
-    pub signature: EDDSASignatureVariable<Ed25519Scalar>,
+    pub signature: EDDSASignatureVariable,
     pub message: ValidatorMessageVariable,
     pub message_byte_length: Variable,
     pub voting_power: U64Variable,

@@ -14,13 +14,19 @@ path = "bin/step.rs"
 name = "skip"
 path = "bin/skip.rs"
 
+[[bin]]
+name = "tendermintx"
+path = "bin/tendermintx.rs"
+
 [features]
 ci = []
 
 [dependencies]
+alloy-sol-types = "0.4.2"
 anyhow = "1.0.71"
 async-trait = "0.1.73"
 clap = { version = "4.3.18", features = ["derive"] }
+curve25519-dalek = "4.1.1"
 digest = "0.10.7"
 dotenv = "0.15.0"
 ed25519-consensus = "2.1.0"
@@ -30,7 +36,7 @@ itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
-plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", branch = "kevjue/expose_Ed25519_parameters" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
