@@ -378,7 +378,7 @@ pub fn generate_proofs_from_block_id(
 }
 
 // Gets the vote struct: https://github.com/informalsystems/tendermint-rs/blob/c2b5c9e01eab1c740598aa14375a7453f3bfa436/light-client-verifier/src/operations/voting_power.rs#L202-L238
-pub fn non_absent_vote(
+pub fn get_vote_from_commit_sig(
     commit_sig: &CommitSig,
     validator_index: ValidatorIndex,
     commit: &Commit,

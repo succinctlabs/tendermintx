@@ -4,16 +4,57 @@ use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
     EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
 };
 use plonky2x::prelude::RichField;
+use tendermint::block::{Commit, CommitSig};
+use tendermint::chain::Id;
 use tendermint::crypto::default::signature::Verifier;
 use tendermint::crypto::signature::Verifier as _;
 use tendermint::validator::Set as ValidatorSet;
 use tendermint::vote::{SignedVote, ValidatorIndex};
+use tendermint::PublicKey;
 
-use super::tendermint_utils::{non_absent_vote, SignedBlock};
+use super::tendermint_utils::{get_vote_from_commit_sig, SignedBlock};
 use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
 use crate::variables::*;
 
-pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
+/// Get the padded_message, message_length, and signature for the validator from a specific
+/// commit signature.
+fn get_signed_message_data<F: RichField>(
+    chain_id: &Id,
+    pubkey: &PublicKey,
+    commit_sig: &CommitSig,
+    val_idx: &ValidatorIndex,
+    commit: &Commit,
+) -> (
+    [u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
+    usize,
+    EDDSASignatureVariableValue<F>,
+) {
+    let vote = get_vote_from_commit_sig(commit_sig, *val_idx, commit).unwrap();
+    let signed_vote = SignedVote::from_vote(vote, chain_id.clone()).expect("missing signature");
+    let mut padded_signed_message = signed_vote.sign_bytes();
+    let msg_length = padded_signed_message.len();
+
+    padded_signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+
+    let sig = signed_vote.signature();
+
+    let signature_value = EDDSASignatureVariableValue {
+        r: CompressedEdwardsY(sig.as_bytes()[0..32].try_into().unwrap()),
+        s: U256::from_little_endian(&sig.as_bytes()[32..64]),
+    };
+
+    Verifier::verify(*pubkey, &signed_vote.sign_bytes(), sig)
+        .expect("Signature should be valid for validator");
+
+    (
+        padded_signed_message.try_into().unwrap(),
+        msg_length,
+        signature_value,
+    )
+}
+
+/// Get the validator data for a specific block.
+pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
     block: &SignedBlock,
 ) -> Vec<Validator<F>> {
     let mut validators = Vec::new();
@@ -28,42 +69,29 @@ pub fn validators_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
 
     // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
     for i in 0..block.commit.signatures.len() {
-        let val_idx = ValidatorIndex::try_from(i).unwrap();
         let validator = Box::new(match validator_set.validator(block_validators[i].address) {
             Some(validator) => validator,
             None => continue, // Cannot find matching validator, so we skip the vote
         });
         let val_bytes = validator.hash_bytes();
-        let pubkey =
-            CompressedEdwardsY::try_from(validator.pub_key.ed25519().unwrap().as_bytes()).unwrap();
+        let val_idx = ValidatorIndex::try_from(i).unwrap();
+        let pubkey = CompressedEdwardsY::from_slice(&validator.pub_key.to_bytes()).unwrap();
 
         if block.commit.signatures[i].is_commit() {
-            let vote =
-                non_absent_vote(&block.commit.signatures[i], val_idx, &block.commit).unwrap();
-
-            let signed_vote = Box::new(
-                SignedVote::from_vote(vote.clone(), block.header.chain_id.clone())
-                    .expect("missing signature"),
+            // Get the padded_message, message_length, and signature for the validator.
+            let (padded_msg, msg_length, signature) = get_signed_message_data(
+                &block.header.chain_id,
+                &validator.pub_key,
+                &block.commit.signatures[i],
+                &val_idx,
+                &block.commit,
             );
-            let mut message_padded = signed_vote.sign_bytes();
-            message_padded.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
-
-            let sig = signed_vote.signature();
-
-            let signature_value = EDDSASignatureVariableValue {
-                r: CompressedEdwardsY(sig.as_bytes()[0..32].try_into().unwrap()),
-                s: U256::from_little_endian(&sig.as_bytes()[32..64]),
-            };
-
-            // Source: https://github.com/informalsystems/tendermint-rs/blob/bcc0b377812b8e53a02dff156988569c5b3c81a2/tendermint/src/crypto/default/signature.rs#L199-L200
-            Verifier::verify(validator.pub_key, &signed_vote.sign_bytes(), sig)
-                .unwrap_or_else(|_| panic!("signature should be valid for validator {}", i));
 
             validators.push(Validator {
                 pubkey,
-                signature: signature_value,
-                message: message_padded.try_into().unwrap(),
-                message_byte_length: F::from_canonical_usize(signed_vote.sign_bytes().len()),
+                signature,
+                message: padded_msg,
+                message_byte_length: F::from_canonical_usize(msg_length),
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 enabled: true,
@@ -133,8 +161,7 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
             None => continue, // Cannot find matching validator, so we skip the vote
         });
         let val_bytes = validator.hash_bytes();
-        let pubkey =
-            CompressedEdwardsY::try_from(validator.pub_key.ed25519().unwrap().as_bytes()).unwrap();
+        let pubkey = CompressedEdwardsY::from_slice(&validator.pub_key.to_bytes()).unwrap();
 
         trusted_validator_fields.push(ValidatorHashField {
             pubkey,
@@ -150,7 +177,6 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
     for _ in val_so_far..VALIDATOR_SET_SIZE_MAX {
         let pubkey = CompressedEdwardsY::from_slice(&DUMMY_PUBLIC_KEY).unwrap();
 
-        // TODO: Fix empty signatures
         trusted_validator_fields.push(ValidatorHashField {
             pubkey,
             voting_power: 0u64,

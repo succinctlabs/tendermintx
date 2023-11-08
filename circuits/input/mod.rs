@@ -23,7 +23,7 @@ use crate::consts::{
     BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
     PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
-use crate::input::conversion::{validator_hash_field_from_block, validators_from_block};
+use crate::input::conversion::{get_validator_data_from_block, validator_hash_field_from_block};
 use crate::variables::*;
 
 pub enum InputDataMode {
@@ -232,7 +232,8 @@ impl InputDataFetcher {
 
         let next_block_header = next_block.header.hash();
 
-        let next_block_validators = validators_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        let next_block_validators =
+            get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
@@ -299,7 +300,7 @@ impl InputDataFetcher {
         let target_block_header = target_block.header.hash();
         let round_present = target_block.commit.round.value() != 0;
         let mut target_block_validators =
-            validators_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+            get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
         update_present_on_trusted_header(
             &mut target_block_validators,
             &target_block,
