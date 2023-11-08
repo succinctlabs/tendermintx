@@ -1,5 +1,5 @@
-use curve25519_dalek::edwards::CompressedEdwardsY;
 use ethers::types::U256;
+use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
     EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
 };

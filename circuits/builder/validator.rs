@@ -116,10 +116,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use curve25519_dalek::edwards::CompressedEdwardsY;
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
+    use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
     use plonky2x::prelude::{
         ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,

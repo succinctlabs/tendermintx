@@ -3044,7 +3044,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#f5c8e50abbfa1bf2cbb68b6aa5e91d07546cbbaf"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha512-pad-fixes#a7baed3f66f2a2228394666707a3dd5cf6d9ae8f"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3086,7 +3086,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#f5c8e50abbfa1bf2cbb68b6aa5e91d07546cbbaf"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha512-pad-fixes#a7baed3f66f2a2228394666707a3dd5cf6d9ae8f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4291,7 +4291,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "curve25519-dalek",
  "digest 0.10.7",
  "dotenv",
  "ed25519-consensus",
