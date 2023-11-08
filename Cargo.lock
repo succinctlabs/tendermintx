@@ -1875,9 +1875,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4136b2a15dd319360be1c07d9933517ccf0be8f16bf62a3bee4f0d618df427"
+checksum = "fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -3047,7 +3047,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
+source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
+source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4146,9 +4146,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
-name = "succinctx-client"
+name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
+source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4324,7 +4324,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
- "succinctx-client",
+ "succinct-client",
  "tendermint",
  "tendermint-proto",
  "tokio",

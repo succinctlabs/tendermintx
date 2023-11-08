@@ -13,7 +13,7 @@ use ethers::contract::abigen;
 use ethers::providers::{Http, Provider};
 use log::{error, info};
 use subtle_encoding::hex;
-use succinctx_client::request::SuccinctClient;
+use succinct_client::request::SuccinctClient;
 use tendermintx::input::InputDataFetcher;
 
 // Note: Update ABI when updating contract.
