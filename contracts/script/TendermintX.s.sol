@@ -11,33 +11,26 @@ contract DeployScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        address gateway = address(0xE304f6B116bE5e43424cEC36a5eFd0B642E0dC95);
-        bytes32 stepFunctionId = bytes32(
-            0xc188574800992a29257de0cf6fc55a8eff0bf9b86333b7a2789f4542f5e7e071
-        );
-
-        bytes32 skipFunctionId = bytes32(
-            0x20b1560241b2a398700f1611af4a6bafb09d3d609a554a4cff90c933807e8070
-        );
+        address gateway = address(0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803);
 
         // Use the below to interact with an already deployed ZK light client
         TendermintX lightClient = TendermintX(
-            0xB1cdc97E3C9fC29a30da31e49B4e2304b011d631
+            0x2761759a64df1133EE1852b51297dbbaC5FF885B
         );
 
         // TODO: Add back in when testing a new skip or step.
+        uint64 height = 1;
+        bytes32 header = hex"b93bbe20a0fbfdf955811b6420f8433904664d45db4bf51022be4200c1a1680d";
+        lightClient.setGenesisHeader(height, header);
+
         // uint64 height = 100100;
-        // bytes32 header = hex"0C1D96912ACE4102C620EC6223E4A457D01ABC9CEC70B7149A10410472D6D60E";
-        // lightClient.setGenesisHeader(height, header);
 
-        uint64 height = 100100;
-
-        lightClient.updateStepId(stepFunctionId);
-        lightClient.updateSkipId(skipFunctionId);
+        // lightClient.updateStepId(stepFunctionId);
+        // lightClient.updateSkipId(skipFunctionId);
 
         // lightClient.requestHeaderStep{value: 0.1 ether}();
 
-        uint64 skipHeight = 100200;
-        lightClient.requestSkip{value: 0.1 ether}(skipHeight);
+        // uint64 skipHeight = 100200;
+        // lightClient.requestSkip{value: 0.1 ether}(skipHeight);
     }
 }
