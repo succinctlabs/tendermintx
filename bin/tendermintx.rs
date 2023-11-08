@@ -5,14 +5,15 @@
 
 use std::env;
 
+use alloy_primitives::{Address, Bytes, B256};
 use alloy_sol_types::{sol, SolType};
+use anyhow::Result;
 use ethers::abi::AbiEncode;
 use ethers::contract::abigen;
-use ethers::core::types::Address;
 use ethers::providers::{Http, Provider};
-use ethers::types::{Bytes, H256};
 use log::{error, info};
 use subtle_encoding::hex;
+use succinctx_client::request::SuccinctClient;
 use tendermintx::input::InputDataFetcher;
 
 // Note: Update ABI when updating contract.
@@ -21,24 +22,15 @@ abigen!(TendermintX, "./abi/TendermintX.abi.json");
 struct TendermintXConfig {
     address: Address,
     chain_id: u32,
-    step_function_id: H256,
-    skip_function_id: H256,
+    step_function_id: B256,
+    skip_function_id: B256,
 }
 
 struct TendermintXOperator {
     config: TendermintXConfig,
     contract: TendermintX<Provider<Http>>,
+    client: SuccinctClient,
     data_fetcher: InputDataFetcher,
-}
-
-#[allow(non_snake_case)]
-#[derive(serde::Serialize, serde::Deserialize)]
-struct OffchainInput {
-    chainId: u32,
-    to: String,
-    data: String,
-    functionId: String,
-    input: String,
 }
 
 type StepInputTuple = sol! { tuple(uint64, bytes32) };
@@ -53,15 +45,19 @@ impl TendermintXOperator {
         let provider =
             Provider::<Http>::try_from(ethereum_rpc_url).expect("could not connect to client");
 
-        let contract = TendermintX::new(config.address, provider.into());
+        let contract = TendermintX::new(config.address.0 .0, provider.into());
 
         let tendermint_rpc_url =
             env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
         let data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
 
+        let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
+        let client = SuccinctClient::new(succinct_rpc_url);
+
         Self {
             config,
             contract,
+            client,
             data_fetcher,
         }
     }
@@ -76,12 +72,12 @@ impl TendermintXOperator {
 
         // Load the function IDs.
         let step_id_env = env::var("STEP_FUNCTION_ID").expect("STEP_FUNCTION_ID must be set");
-        let step_function_id = H256::from_slice(
+        let step_function_id = B256::from_slice(
             &hex::decode(step_id_env.strip_prefix("0x").unwrap_or(&step_id_env))
                 .expect("invalid hex for step_function_id, expected 0x prefix"),
         );
         let skip_id_env = env::var("SKIP_FUNCTION_ID").expect("SKIP_FUNCTION_ID must be set");
-        let skip_function_id = H256::from_slice(
+        let skip_function_id = B256::from_slice(
             &hex::decode(skip_id_env.strip_prefix("0x").unwrap_or(&skip_id_env))
                 .expect("invalid hex for skip_function_id, expected 0x prefix"),
         );
@@ -94,41 +90,7 @@ impl TendermintXOperator {
         }
     }
 
-    async fn submit_request(&self, function_data: Vec<u8>, input: Vec<u8>, function_id: H256) {
-        // All data except for chainId is a string, and needs a 0x prefix.
-        let data = OffchainInput {
-            chainId: self.config.chain_id,
-            to: Bytes::from(self.config.address.0).to_string(),
-            data: Bytes::from(function_data).to_string(),
-            functionId: Bytes::from(function_id.0).to_string(),
-            input: Bytes::from(input).to_string(),
-        };
-
-        // Stringify the data into JSON format.
-        let serialized_data = serde_json::to_string(&data).unwrap();
-
-        // TODO: Update with config.
-        let request_url = "https://alpha.succinct.xyz/api/request/new";
-
-        // Submit POST request to the offchain worker.
-        let client = reqwest::Client::new();
-        let res = client
-            .post(request_url)
-            .header("Content-Type", "application/json")
-            .body(serialized_data)
-            .send()
-            .await
-            .expect("Failed to send request.");
-
-        if res.status().is_success() {
-            info!("Successfully submitted request.");
-        } else {
-            // TODO: Log more specific error message.
-            error!("Failed to submit request.");
-        }
-    }
-
-    async fn request_step(&self, trusted_block: u64) {
+    async fn request_step(&self, trusted_block: u64) -> Result<String> {
         let trusted_header_hash = self
             .contract
             .block_height_to_header_hash(trusted_block)
@@ -140,11 +102,20 @@ impl TendermintXOperator {
         let step_call = StepCall { trusted_block };
         let function_data = step_call.encode();
 
-        self.submit_request(function_data, input, self.config.step_function_id)
-            .await;
+        let request_id = self
+            .client
+            .submit_platform_request(
+                self.config.chain_id,
+                self.config.address,
+                function_data.into(),
+                self.config.step_function_id,
+                Bytes::copy_from_slice(&input),
+            )
+            .await?;
+        Ok(request_id)
     }
 
-    async fn request_skip(&self, trusted_block: u64, target_block: u64) {
+    async fn request_skip(&self, trusted_block: u64, target_block: u64) -> Result<String> {
         let trusted_header_hash = self
             .contract
             .block_height_to_header_hash(trusted_block)
@@ -160,8 +131,17 @@ impl TendermintXOperator {
         };
         let function_data = skip_call.encode();
 
-        self.submit_request(function_data, input, self.config.skip_function_id)
-            .await;
+        let request_id = self
+            .client
+            .submit_platform_request(
+                self.config.chain_id,
+                self.config.address,
+                function_data.into(),
+                self.config.skip_function_id,
+                Bytes::copy_from_slice(&input),
+            )
+            .await?;
+        Ok(request_id)
     }
 
     async fn run(&self) {
@@ -190,10 +170,26 @@ impl TendermintXOperator {
 
             if target_block - current_block == 1 {
                 // Request the step if the target block is the next block.
-                self.request_step(current_block).await;
+                match self.request_step(current_block).await {
+                    Ok(request_id) => {
+                        info!("Step request submitted: {}", request_id)
+                    }
+                    Err(e) => {
+                        error!("Step request failed: {}", e);
+                        continue;
+                    }
+                };
             } else {
                 // Request a skip if the target block is not the next block.
-                self.request_skip(current_block, target_block).await;
+                match self.request_skip(current_block, target_block).await {
+                    Ok(request_id) => {
+                        info!("Skip request submitted: {}", request_id)
+                    }
+                    Err(e) => {
+                        error!("Skip request failed: {}", e);
+                        continue;
+                    }
+                };
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(60 * LOOP_DELAY)).await;

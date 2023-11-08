@@ -1992,6 +1992,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hex-literal"
@@ -3044,7 +3047,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#6da987e2356ed7fa36b71911747a2a4c1ea8ad97"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3086,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#6da987e2356ed7fa36b71911747a2a4c1ea8ad97"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4143,6 +4146,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
+name = "succinctx-client"
+version = "0.1.0"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/succinctx-request#b493a9ba4018414779c0fb36c2e0173d36d3cf81"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "svm-rs"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4287,6 +4303,7 @@ dependencies = [
 name = "tendermintx"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
  "async-trait",
@@ -4307,6 +4324,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
+ "succinctx-client",
  "tendermint",
  "tendermint-proto",
  "tokio",
