@@ -72,6 +72,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_accumulate_voting_power() {
+        env_logger::try_init().unwrap_or_default();
+
         let test_cases = [
             // voting power, enabled, pass
             (vec![10i64, 10i64, 10i64, 10i64], [1, 1, 1, 0], true),
