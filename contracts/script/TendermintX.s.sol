@@ -19,14 +19,15 @@ contract DeployScript is Script {
         );
 
         // TODO: Add back in when testing a new skip or step.
-        uint64 height = 1;
-        bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
-        lightClient.setGenesisHeader(height, header);
+        // uint64 height = 1;
+        // bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
+        // lightClient.setGenesisHeader(height, header);
 
-        // uint64 height = 100100;
+        bytes32 stepFunctionId = hex"2569c8472d303fedd0ef9243c3ed0187d8ec34f03cff595c811296b8fbd1fc79";
+        bytes32 skipFunctionId = hex"d01199248505b4bdfea473b746c9d0c42556dd56a671e1d0c5b9555a9eed41f5";
 
-        // lightClient.updateStepId(stepFunctionId);
-        // lightClient.updateSkipId(skipFunctionId);
+        lightClient.updateStepId(stepFunctionId);
+        lightClient.updateSkipId(skipFunctionId);
 
         // lightClient.requestHeaderStep{value: 0.1 ether}();
 
