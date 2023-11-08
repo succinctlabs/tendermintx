@@ -3047,7 +3047,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/pad-hash-leaves#929f31cc41a3fdd5eafcfec1196f3e03d212ded9"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/pad-hash-leaves#929f31cc41a3fdd5eafcfec1196f3e03d212ded9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4148,7 +4148,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#5fb0b3b9671ee23b33b2eaf97b2c8c52464dc7b4"
+source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/pad-hash-leaves#929f31cc41a3fdd5eafcfec1196f3e03d212ded9"
 dependencies = [
  "alloy-primitives",
  "anyhow",

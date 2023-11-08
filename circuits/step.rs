@@ -235,7 +235,7 @@ mod tests {
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_step_large() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
         let header: [u8; 32] =
             hex::decode("DA1C195D8A0E74E50A8C6ABE24B63024F9865624609726C9954D713E21509E27")
                 .unwrap()
