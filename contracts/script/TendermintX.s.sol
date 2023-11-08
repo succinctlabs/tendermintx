@@ -11,16 +11,16 @@ contract DeployScript is Script {
 
     function run() public {
         vm.startBroadcast();
-        address gateway = address(0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803);
+        // address gateway = address(0x6e4f1e9eA315EBFd69d18C2DB974EEf6105FB803);
 
         // Use the below to interact with an already deployed ZK light client
         TendermintX lightClient = TendermintX(
-            0x2761759a64df1133EE1852b51297dbbaC5FF885B
+            0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2
         );
 
         // TODO: Add back in when testing a new skip or step.
         uint64 height = 1;
-        bytes32 header = hex"b93bbe20a0fbfdf955811b6420f8433904664d45db4bf51022be4200c1a1680d";
+        bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
         lightClient.setGenesisHeader(height, header);
 
         // uint64 height = 100100;
