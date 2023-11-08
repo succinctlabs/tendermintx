@@ -326,9 +326,9 @@ dependencies = [
 
 [[package]]
 name = "array-macro"
-version = "2.1.5"
+version = "2.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "457661fa6716c30b73d7c41400a8a78780d20523b83a9441dabec28e93f27cf4"
+checksum = "220a2c618ab466efe41d0eace94dfeff1c35e3aa47891bdb95e1c0fefffd3c99"
 
 [[package]]
 name = "arrayvec"
@@ -3047,7 +3047,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#605932d149eeba4558b404
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha512-hint-serialization#e31be5afd6a6e68774a9d047b0191d8790579594"
+source = "git+https://github.com/succinctlabs/succinctx.git#aab74a105311d2f8236c722883374c8aff0d2ceb"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha512-hint-serialization#e31be5afd6a6e68774a9d047b0191d8790579594"
+source = "git+https://github.com/succinctlabs/succinctx.git#aab74a105311d2f8236c722883374c8aff0d2ceb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4148,7 +4148,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/sha512-hint-serialization#e31be5afd6a6e68774a9d047b0191d8790579594"
+source = "git+https://github.com/succinctlabs/succinctx.git#aab74a105311d2f8236c722883374c8aff0d2ceb"
 dependencies = [
  "alloy-primitives",
  "anyhow",
