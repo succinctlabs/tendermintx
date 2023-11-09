@@ -65,7 +65,6 @@ impl TendermintXOperator {
     fn get_config() -> TendermintXConfig {
         let contract_address = env::var("CONTRACT_ADDRESS").expect("CONTRACT_ADDRESS must be set");
         let chain_id = env::var("CHAIN_ID").expect("CHAIN_ID must be set");
-        // TODO: TendermintX on Goerli: https://goerli.etherscan.io/address/#code
         let address = contract_address
             .parse::<Address>()
             .expect("invalid address");

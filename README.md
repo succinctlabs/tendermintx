@@ -30,14 +30,20 @@ Deploy a `TendermintX` contract.
 forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX
 ```
 
-Initialize `TendermintX` contract with genesis parameters from forge script.
+Initialize the `TendermintX` contract with genesis parameters.
 ```
-forge script script/TendermintX.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+forge script script/Genesis.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
-Update .env file with contract address and chain id.
+Update the function ID's on the `TendermintX` contract.
+```
+forge script script/FunctionId.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+```
 
-Run `TendermintX` script to update the light client continuously.
+
+Run `TendermintX` script to update the light client continuously. 
+
+Note: Update .env with the necessary variables before running.
 ```
 cargo run --bin tendermintx --release
 ```
