@@ -1,4 +1,4 @@
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::CircuitBuilderCurveGadget;
+use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
@@ -8,9 +8,7 @@ use plonky2x::prelude::{
 
 use super::shared::TendermintHeader;
 use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::variables::{
-    EDDSAPublicKeyVariable, MarshalledValidatorVariable, TendermintHashVariable,
-};
+use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// Serializes the validator public key and voting power to bytes.
@@ -22,7 +20,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// read more about them here: https://protobuf.dev/programming-guides/encoding/#varints.  
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &EDDSAPublicKeyVariable,
+        pubkey: &CompressedEdwardsYVariable,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable;
 
@@ -45,7 +43,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
     fn marshal_tendermint_validator(
         &mut self,
-        pubkey: &EDDSAPublicKeyVariable,
+        pubkey: &CompressedEdwardsYVariable,
         voting_power: &U64Variable,
     ) -> MarshalledValidatorVariable {
         // The encoding is as follows in bytes: 10 34 10 32 <pubkey> 16 <varint>
@@ -54,9 +52,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
             .0
             .to_vec();
 
-        // Compress the public key to 32 bytes.
-        let compressed_point = self.compress_point(pubkey);
-        res.extend_from_slice(&compressed_point.0.as_bytes());
+        res.extend_from_slice(&pubkey.0.as_bytes());
 
         res.push(self.constant::<ByteVariable>(16u8));
 
@@ -123,8 +119,7 @@ pub(crate) mod tests {
     use ethers::types::H256;
     use ethers::utils::hex;
     use itertools::Itertools;
-    use plonky2::field::types::PrimeField;
-    use plonky2x::frontend::ecc::ed25519::curve::curve_types::AffinePoint;
+    use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
     use plonky2x::prelude::{
         ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
@@ -138,7 +133,6 @@ pub(crate) mod tests {
     use crate::input::tendermint_utils::{generate_proofs_from_header, proofs_from_byte_slices};
     use crate::input::utils::{convert_to_h256, get_path_indices};
     use crate::input::InputDataFetcher;
-    use crate::variables::Ed25519;
 
     #[test]
     fn test_marshal_tendermint_validator() {
@@ -155,7 +149,7 @@ pub(crate) mod tests {
         // Define the circuit
         let mut builder = DefaultBuilder::new();
         let voting_power_variable = builder.read::<U64Variable>();
-        let pub_key = builder.read::<EDDSAPublicKeyVariable>();
+        let pub_key = builder.read::<CompressedEdwardsYVariable>();
         let result = builder.marshal_tendermint_validator(&pub_key, &voting_power_variable);
         builder.write(result);
         let circuit = builder.build();
@@ -163,31 +157,10 @@ pub(crate) mod tests {
         let mut input = circuit.input();
         input.write::<U64Variable>(voting_power_i64 as u64);
         let pub_key_uncompressed =
-            AffinePoint::<Ed25519>::new_from_compressed_point(&hex::decode(pubkey).unwrap());
-        input.write::<EDDSAPublicKeyVariable>(pub_key_uncompressed);
+            CompressedEdwardsY::from_slice(&hex::decode(pubkey).unwrap()).unwrap();
+        input.write::<CompressedEdwardsYVariable>(pub_key_uncompressed);
         let (_, mut output) = circuit.prove(&input);
         let output_bytes = output.read::<BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>>();
-
-        // Debug print output
-        println!("pub_key_uncompressed: {:?}", pub_key_uncompressed);
-        println!(
-            "pub_key.x: {:?}",
-            pub_key_uncompressed
-                .x
-                .to_canonical_biguint()
-                .to_u32_digits()
-        );
-        println!(
-            "pub_key.y: {:?}",
-            pub_key_uncompressed
-                .y
-                .to_canonical_biguint()
-                .to_u32_digits()
-        );
-        let pub_key = pub_key_uncompressed.compress_point();
-        println!("pub_key_compressed: {:?}", pub_key.to_u32_digits());
-        let pub_key_bytes = pub_key.to_bytes_le();
-        println!("pub_key_bytes: {:?}", pub_key_bytes);
 
         for i in 0..VALIDATOR_BYTE_LENGTH_MAX {
             let expected_value = *expected_marshal.get(i).unwrap_or(&0);

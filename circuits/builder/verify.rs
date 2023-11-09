@@ -1,6 +1,5 @@
-use plonky2x::frontend::ecc::ed25519::gadgets::curve::AffinePointTarget;
-use plonky2x::frontend::ecc::ed25519::gadgets::eddsa::EDDSASignatureTarget;
-use plonky2x::frontend::ecc::ed25519::gadgets::verify::EDDSABatchVerify;
+use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
+use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
@@ -220,15 +219,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         }
 
         // Verify the signatures of the validators that signed the header.
-        self.conditional_batch_eddsa_verify(
+        self.curta_eddsa_verify_sigs_conditional(
             ArrayVariable::<BoolVariable, VALIDATOR_SET_SIZE_MAX>::new(signed.clone()),
-            ArrayVariable::<U32Variable, VALIDATOR_SET_SIZE_MAX>::new(message_byte_lengths),
+            Some(ArrayVariable::<U32Variable, VALIDATOR_SET_SIZE_MAX>::new(
+                message_byte_lengths,
+            )),
             ArrayVariable::<
                 BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>,
                 VALIDATOR_SET_SIZE_MAX,
             >::new(messages),
-            ArrayVariable::<EDDSASignatureTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(signatures),
-            ArrayVariable::<AffinePointTarget<Ed25519>, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
+            ArrayVariable::<EDDSASignatureVariable, VALIDATOR_SET_SIZE_MAX>::new(signatures),
+            ArrayVariable::<CompressedEdwardsYVariable, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
         );
 
         // Compute the validators hash of the validators from the necessary fields.

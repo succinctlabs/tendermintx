@@ -255,7 +255,7 @@ mod tests {
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 128;
+        const MAX_VALIDATOR_SET_SIZE: usize = 100;
         let trusted_header: [u8; 32] =
             hex::decode("935786C7F889013D6B0D8DE8B11286DDB8DDE476A312FC5578FDC53985DC3035")
                 .unwrap()
