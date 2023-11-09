@@ -6,7 +6,7 @@ import {TendermintX} from "../src/TendermintX.sol";
 
 // forge script script/TendermintX.s.sol --verifier etherscan --private-key
 // forge verify-contract <address> TendermintX --chain 5 --etherscan-api-key ${ETHERSCAN_API_KEY} --constructor-args "0x000000000000000000000000852a94f8309d445d27222edb1e92a4e83dddd2a8"
-contract DeployScript is Script {
+contract FunctionIdScript is Script {
     function setUp() public {}
 
     function run() public {
