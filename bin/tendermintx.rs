@@ -52,7 +52,8 @@ impl TendermintXOperator {
         let data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
-        let client = SuccinctClient::new(succinct_rpc_url);
+        let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
+        let client = SuccinctClient::new(succinct_rpc_url, succinct_api_key);
 
         Self {
             config,
