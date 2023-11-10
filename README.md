@@ -19,7 +19,7 @@ The methodology for doing so is described in the section 2.3 of [A Tendermint Li
 This is rarely used, as `step` will only be invoked when the validator set changes by more than 2/3 in a single block.
 
 ## Deployment
-The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/succinctlabs/tendermintx).
+The circuits are currently available on Succinct X [here](https://platform.succinct.xyz/succinctlabs/tendermintx).
 
 There are currently TendermintX light clients tracking the following networks on Goerli:
 - [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2)
