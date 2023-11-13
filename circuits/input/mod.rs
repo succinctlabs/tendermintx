@@ -7,7 +7,7 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use log::{info, debug};
+use log::{debug, info};
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use tendermint::block::signed_header::SignedHeader;
