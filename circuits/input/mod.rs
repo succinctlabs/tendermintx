@@ -47,7 +47,7 @@ impl Default for InputDataFetcher {
 
         let url = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
-        Self::new(&url, "./circuits/fixtures/mocha-4")
+        Self::new(&url, "./circuits/fixtures/celestia")
     }
 }
 
