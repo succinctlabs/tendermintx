@@ -264,17 +264,22 @@ pub(crate) mod tests {
         let input_data_fetcher = InputDataFetcher::default();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
-        let header =
-            rt.block_on(async { input_data_fetcher.get_header_from_number(10000u64).await });
+        let signed_header = rt.block_on(async {
+            input_data_fetcher
+                .get_signed_header_from_number(10000u64)
+                .await
+        });
 
-        let (root, proofs) = generate_proofs_from_header(&header);
+        let (root, proofs) = generate_proofs_from_header(&signed_header.header);
 
         // Can test with leaf_index 2, 4, 6, 7 or 8 (height, last_block_id_hash, data_hash, validators_hash, next_validators_hash)
         // TODO: Add tests for all leaf indices that are used.
         let leaf_index = 4;
 
         // Note: Must convert to protobuf encoding (get_proofs_from_header is a good reference)
-        let leaf = Protobuf::<RawBlockId>::encode_vec(header.last_block_id.unwrap_or_default());
+        let leaf = Protobuf::<RawBlockId>::encode_vec(
+            signed_header.header.last_block_id.unwrap_or_default(),
+        );
 
         let path_indices = get_path_indices(leaf_index as u64, proofs[0].total);
 
