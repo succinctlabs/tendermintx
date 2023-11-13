@@ -7,16 +7,18 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use log::info;
+use log::{debug, info};
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
+use tendermint::block::signed_header::SignedHeader;
+use tendermint::validator::{Info, Set as TendermintValidatorSet};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
 use self::conversion::update_present_on_trusted_header;
 use self::tendermint_utils::{
-    generate_proofs_from_header, is_valid_skip, Hash, Header, HeaderResponse, Proof, SignedBlock,
-    SignedBlockResponse,
+    generate_proofs_from_header, is_valid_skip, CommitResponse, Hash, Header, HeaderResponse,
+    Proof, ValidatorSetResponse,
 };
 use self::utils::convert_to_h256;
 use crate::consts::{
@@ -82,20 +84,28 @@ impl InputDataFetcher {
         v.result.header
     }
 
-    // Binary search to find the highest block number to call request_combined_skip on. If the
-    // binary search returns start_block + 1, then we call request_combined_step instead.
+    // Search to find the highest block number to call request_combined_skip on. If the search
+    // returns start_block + 1, then we call request_combined_step instead.
     pub async fn find_block_to_request(&self, start_block: u64, max_end_block: u64) -> u64 {
-        let start_signed_block = self.get_block_from_number(start_block).await;
-
         let mut curr_end_block = max_end_block;
         loop {
             if curr_end_block - start_block == 1 {
                 return curr_end_block;
             }
 
-            let curr_end_signed_block = self.get_block_from_number(curr_end_block).await;
+            let start_block_validators = self.get_validator_set_from_number(start_block).await;
+            let start_validator_set = TendermintValidatorSet::new(start_block_validators, None);
 
-            if is_valid_skip(&start_signed_block, &curr_end_signed_block) {
+            let target_block_validators = self.get_validator_set_from_number(curr_end_block).await;
+            let target_validator_set = TendermintValidatorSet::new(target_block_validators, None);
+
+            let target_block_commit = self.get_signed_header_from_number(curr_end_block).await;
+
+            if is_valid_skip(
+                start_validator_set,
+                target_validator_set,
+                target_block_commit.commit,
+            ) {
                 return curr_end_block;
             }
 
@@ -104,9 +114,9 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_block_from_number(&self, block_number: u64) -> Box<SignedBlock> {
+    pub async fn get_signed_header_from_number(&self, block_number: u64) -> SignedHeader {
         let file_name = format!(
-            "{}/{}/signed_block.json",
+            "{}/{}/commit.json",
             self.fixture_path,
             block_number.to_string().as_str()
         );
@@ -114,7 +124,7 @@ impl InputDataFetcher {
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
                 let query_url = format!(
-                    "{}/signed_block?height={}",
+                    "{}/commit?height={}",
                     self.url,
                     block_number.to_string().as_str()
                 );
@@ -135,10 +145,75 @@ impl InputDataFetcher {
                 file_content.unwrap()
             }
         };
-        let v: SignedBlockResponse =
+        let v: CommitResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        let block = v.result;
-        Box::new(block)
+        v.result.signed_header
+    }
+
+    pub async fn get_validator_set_from_number(&self, block_number: u64) -> Vec<Info> {
+        let mut validators = Vec::new();
+
+        let mut page_number = 1;
+        let mut num_so_far = 0;
+        loop {
+            let fetched_result = self.fetch_validator_result(block_number, page_number).await;
+
+            validators.extend(fetched_result.result.validators);
+            // Parse count to u32.
+            let parsed_count: u32 = fetched_result.result.count.parse().unwrap();
+            // Parse total to u32.
+            let parsed_total: u32 = fetched_result.result.total.parse().unwrap();
+
+            num_so_far += parsed_count;
+            if num_so_far >= parsed_total {
+                break;
+            }
+            page_number += 1;
+        }
+
+        validators
+    }
+
+    async fn fetch_validator_result(
+        &self,
+        block_number: u64,
+        page_number: u64,
+    ) -> ValidatorSetResponse {
+        // Check size of validator set.
+        let file_name = format!(
+            "{}/{}/validators_{}.json",
+            self.fixture_path,
+            block_number.to_string().as_str(),
+            page_number
+        );
+        let fetched_result = match &self.mode {
+            InputDataMode::Rpc => {
+                let query_url = format!(
+                    "{}/validators?height={}&per_page=100&page={}",
+                    self.url,
+                    block_number.to_string().as_str(),
+                    page_number.to_string().as_str()
+                );
+                info!("Querying url {:?}", query_url.as_str());
+                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+                if self.save {
+                    // Ensure the directory exists
+                    if let Some(parent) = Path::new(&file_name).parent() {
+                        fs::create_dir_all(parent).unwrap();
+                    }
+                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
+                }
+                res
+            }
+            InputDataMode::Fixture => {
+                let file_content = fs::read_to_string(file_name.as_str());
+                info!("File name: {}", file_name.as_str());
+                file_content.unwrap()
+            }
+        };
+        let v: ValidatorSetResponse =
+            serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
+        v
     }
 
     pub async fn get_header_from_number(&self, block_number: u64) -> Header {
@@ -215,25 +290,32 @@ impl InputDataFetcher {
     ) -> (
         [u8; 32],
         bool,
-        Vec<Validator<F>>,
+        Vec<ValidatorType<F>>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     ) {
-        println!("Getting step inputs");
-        let prev_block = self.get_block_from_number(prev_block_number).await;
-        let computed_prev_header_hash = prev_block.header.hash();
+        debug!("Getting step inputs");
+        let prev_block_signed_header = self.get_signed_header_from_number(prev_block_number).await;
+        let prev_header = prev_block_signed_header.header;
         assert_eq!(
-            computed_prev_header_hash.as_bytes(),
-            prev_header_hash.as_bytes()
+            prev_header.hash().as_bytes(),
+            prev_header_hash.as_bytes(),
+            "Prev header hash 
+        doesn't pass sanity check"
         );
-        let next_block = self.get_block_from_number(prev_block_number + 1).await;
-        let round_present = next_block.commit.round.value() != 0;
 
-        let next_block_header = next_block.header.hash();
+        let next_block_signed_header = self
+            .get_signed_header_from_number(prev_block_number + 1)
+            .await;
+        let next_block_validators = self
+            .get_validator_set_from_number(prev_block_number + 1)
+            .await;
 
-        let next_block_validators =
-            get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&next_block);
+        let next_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+            &next_block_validators,
+            &next_block_signed_header,
+        );
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
@@ -241,30 +323,36 @@ impl InputDataFetcher {
         );
 
         let next_block_validators_hash_proof = self.get_inclusion_proof(
-            &next_block.header,
+            &next_block_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
-            next_block.header.validators_hash.encode_vec(),
+            next_block_signed_header.header.validators_hash.encode_vec(),
         );
 
-        let last_block_id_hash = next_block.header.last_block_id.unwrap().hash;
-        let encoded_last_block_id =
-            Protobuf::<RawBlockId>::encode_vec(next_block.header.last_block_id.unwrap_or_default());
+        let last_block_id_hash = next_block_signed_header.header.last_block_id.unwrap().hash;
+        let encoded_last_block_id = Protobuf::<RawBlockId>::encode_vec(
+            next_block_signed_header
+                .header
+                .last_block_id
+                .unwrap_or_default(),
+        );
         assert_eq!(
             last_block_id_hash.as_bytes(),
             &encoded_last_block_id[2..34],
             "prev header hash doesn't pass sanity check"
         );
         let next_block_last_block_id_proof = self.get_inclusion_proof(
-            &next_block.header,
+            &next_block_signed_header.header,
             LAST_BLOCK_ID_INDEX as u64,
             encoded_last_block_id,
         );
 
         let prev_block_next_validators_hash_proof = self.get_inclusion_proof(
-            &prev_block.header,
+            &prev_header,
             NEXT_VALIDATORS_HASH_INDEX as u64,
-            prev_block.header.next_validators_hash.encode_vec(),
+            prev_header.next_validators_hash.encode_vec(),
         );
+        let round_present = next_block_signed_header.commit.round.value() != 0;
+        let next_block_header = next_block_signed_header.header.hash();
         (
             next_block_header.as_bytes().try_into().unwrap(),
             round_present,
@@ -281,7 +369,7 @@ impl InputDataFetcher {
         trusted_block_hash: H256,
         target_block_number: u64,
     ) -> (
-        Vec<Validator<F>>,                                               // validators
+        Vec<ValidatorType<F>>,                                           // validators
         [u8; 32],                                                        // target_header
         bool,                                                            // round_present
         HeightProofValueType<F>, // target_block_height_proof,
@@ -290,47 +378,63 @@ impl InputDataFetcher {
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
         Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
     ) {
-        let trusted_block = self.get_block_from_number(trusted_block_number).await;
-        let computed_trusted_header_hash = trusted_block.header.hash();
+        let trusted_signed_header = self
+            .get_signed_header_from_number(trusted_block_number)
+            .await;
+        let trusted_block_validator_set = self
+            .get_validator_set_from_number(trusted_block_number)
+            .await;
+        let computed_trusted_header_hash = trusted_signed_header.header.hash();
         assert_eq!(
             computed_trusted_header_hash.as_bytes(),
             trusted_block_hash.as_bytes()
         );
-        let target_block = self.get_block_from_number(target_block_number).await;
-        let target_block_header = target_block.header.hash();
-        let round_present = target_block.commit.round.value() != 0;
-        let mut target_block_validators =
-            get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&target_block);
+        let target_signed_header = self
+            .get_signed_header_from_number(target_block_number)
+            .await;
+        let target_block_header = target_signed_header.header.hash();
+        let round_present = target_signed_header.commit.round.value() != 0;
+        let target_block_validator_set = self
+            .get_validator_set_from_number(target_block_number)
+            .await;
+        let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+            &target_block_validator_set,
+            &target_signed_header,
+        );
         update_present_on_trusted_header(
             &mut target_block_validators,
-            &target_block,
-            &trusted_block,
+            &target_signed_header.commit,
+            &target_block_validator_set,
+            &trusted_block_validator_set,
         );
 
         let target_block_height_proof = self.get_merkle_proof(
-            &target_block.header,
+            &target_signed_header.header,
             BLOCK_HEIGHT_INDEX as u64,
-            target_block.header.height.encode_vec(),
+            target_signed_header.header.height.encode_vec(),
         );
 
         let target_block_height_proof = HeightProofValueType::<F> {
-            height: target_block.header.height.value(),
-            enc_height_byte_length: target_block.header.height.encode_vec().len() as u32,
+            height: target_signed_header.header.height.value(),
+            enc_height_byte_length: target_signed_header.header.height.encode_vec().len() as u32,
             proof: target_block_height_proof.1,
         };
 
         let target_block_validators_hash_proof = self.get_inclusion_proof(
-            &target_block.header,
+            &target_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
-            target_block.header.validators_hash.encode_vec(),
+            target_signed_header.header.validators_hash.encode_vec(),
         );
 
         let trusted_block_validator_fields =
-            validator_hash_field_from_block::<VALIDATOR_SET_SIZE_MAX, F>(&trusted_block);
+            validator_hash_field_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+                &trusted_block_validator_set,
+                &trusted_signed_header.commit,
+            );
         let trusted_block_validator_hash_proof = self.get_inclusion_proof(
-            &trusted_block.header,
+            &trusted_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
-            trusted_block.header.validators_hash.encode_vec(),
+            trusted_signed_header.header.validators_hash.encode_vec(),
         );
 
         (
@@ -343,5 +447,21 @@ impl InputDataFetcher {
             trusted_block_validator_hash_proof,
             trusted_block_validator_fields,
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use subtle_encoding::hex;
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_get_header() {
+        let data_fetcher = super::InputDataFetcher::default();
+        let header = data_fetcher.get_header_from_number(3000).await;
+        println!(
+            "Header: {:?}",
+            String::from_utf8(hex::encode(header.hash()))
+        );
     }
 }

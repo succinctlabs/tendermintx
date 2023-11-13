@@ -10,6 +10,7 @@ use std::rc::Rc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle_encoding::hex;
+use tendermint::block::signed_header::SignedHeader;
 pub use tendermint::block::Header;
 pub use tendermint::merkle::Hash;
 use tendermint::validator::Set as TendermintValidatorSet;
@@ -53,6 +54,29 @@ pub struct DataCommitment {
 #[derive(Debug, Deserialize)]
 pub struct SignedBlockResponse {
     pub result: SignedBlock,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CommitResponse {
+    pub result: SignedHeaderWrapper,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignedHeaderWrapper {
+    pub signed_header: SignedHeader,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ValidatorSetResponse {
+    pub result: BlockValidatorSet,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BlockValidatorSet {
+    pub block_height: String,
+    pub validators: Vec<Info>,
+    pub count: String,
+    pub total: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -418,23 +442,18 @@ pub fn get_vote_from_commit_sig(
 }
 
 /// Determines if a valid skip is possible between start_block and target_block.
-pub fn is_valid_skip(start_block: &SignedBlock, target_block: &SignedBlock) -> bool {
+pub fn is_valid_skip(
+    start_validator_set: TendermintValidatorSet,
+    target_validator_set: TendermintValidatorSet,
+    target_block_commit: Commit,
+) -> bool {
     let threshold = 1_f64 / 3_f64;
 
     let mut shared_voting_power = 0;
 
-    let target_block_validator_set = TendermintValidatorSet::new(
-        target_block.validator_set.validators.clone(),
-        target_block.validator_set.proposer.clone(),
-    );
-    let start_block_validator_set = TendermintValidatorSet::new(
-        start_block.validator_set.validators.clone(),
-        start_block.validator_set.proposer.clone(),
-    );
+    let target_block_total_voting_power = target_validator_set.total_voting_power().value();
 
-    let target_block_total_voting_power = target_block_validator_set.total_voting_power().value();
-
-    let start_block_validators = start_block_validator_set.validators();
+    let start_block_validators = start_validator_set.validators();
 
     let mut start_block_idx = 0;
     let start_block_num_validators = start_block_validators.len();
@@ -445,10 +464,10 @@ pub fn is_valid_skip(start_block: &SignedBlock, target_block: &SignedBlock) -> b
         && start_block_idx < start_block_num_validators
     {
         if let Some(target_block_validator) =
-            target_block_validator_set.validator(start_block_validators[start_block_idx].address)
+            target_validator_set.validator(start_block_validators[start_block_idx].address)
         {
-            // Confirm that the validator has signed on block_2
-            for sig in target_block.commit.signatures.iter() {
+            // Confirm that the validator has signed on target_block.
+            for sig in target_block_commit.signatures.iter() {
                 if sig.validator_address().is_some()
                     && sig.validator_address().unwrap() == target_block_validator.address
                 {

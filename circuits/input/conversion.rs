@@ -4,15 +4,16 @@ use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
     EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
 };
 use plonky2x::prelude::RichField;
+use tendermint::block::signed_header::SignedHeader;
 use tendermint::block::{Commit, CommitSig};
 use tendermint::chain::Id;
 use tendermint::crypto::default::signature::Verifier;
 use tendermint::crypto::signature::Verifier as _;
-use tendermint::validator::Set as ValidatorSet;
+use tendermint::validator::{Info, Set as TendermintValidatorSet};
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::PublicKey;
 
-use super::tendermint_utils::{get_vote_from_commit_sig, SignedBlock};
+use super::tendermint_utils::get_vote_from_commit_sig;
 use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
 use crate::variables::*;
 
@@ -55,20 +56,17 @@ fn get_signed_message_data<F: RichField>(
 
 /// Get the validator data for a specific block.
 pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
-    block: &SignedBlock,
-) -> Vec<Validator<F>> {
+    block_validators: &[Info],
+    signed_header: &SignedHeader,
+) -> Vec<ValidatorType<F>> {
     let mut validators = Vec::new();
 
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
-    let validator_set = ValidatorSet::new(
-        block.validator_set.validators.clone(),
-        block.validator_set.proposer.clone(),
-    );
-    let block_validators = validator_set.validators();
+    let validator_set = TendermintValidatorSet::new(block_validators.to_vec(), None);
 
     // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
-    for i in 0..block.commit.signatures.len() {
+    for i in 0..signed_header.commit.signatures.len() {
         let validator = Box::new(match validator_set.validator(block_validators[i].address) {
             Some(validator) => validator,
             None => continue, // Cannot find matching validator, so we skip the vote
@@ -77,17 +75,17 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
         let val_idx = ValidatorIndex::try_from(i).unwrap();
         let pubkey = CompressedEdwardsY::from_slice(&validator.pub_key.to_bytes()).unwrap();
 
-        if block.commit.signatures[i].is_commit() {
+        if signed_header.commit.signatures[i].is_commit() {
             // Get the padded_message, message_length, and signature for the validator.
             let (padded_msg, msg_length, signature) = get_signed_message_data(
-                &block.header.chain_id,
+                &signed_header.header.chain_id,
                 &validator.pub_key,
-                &block.commit.signatures[i],
+                &signed_header.commit.signatures[i],
                 &val_idx,
-                &block.commit,
+                &signed_header.commit,
             );
 
-            validators.push(Validator {
+            validators.push(ValidatorType {
                 pubkey,
                 signature,
                 message: padded_msg,
@@ -105,7 +103,7 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
             };
 
             // These are dummy signatures (included in val hash, did not vote)
-            validators.push(Validator {
+            validators.push(ValidatorType {
                 pubkey,
                 signature: signature_value,
                 message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
@@ -120,14 +118,14 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
     }
 
     // These are empty signatures (not included in val hash)
-    for _ in block.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
+    for _ in signed_header.commit.signatures.len()..VALIDATOR_SET_SIZE_MAX {
         let pubkey = CompressedEdwardsY::from_slice(&DUMMY_PUBLIC_KEY).unwrap();
         let signature_value = EDDSASignatureVariableValue {
             r: CompressedEdwardsY(DUMMY_SIGNATURE[0..32].try_into().unwrap()),
             s: U256::from_little_endian(&DUMMY_SIGNATURE[32..64]),
         };
 
-        validators.push(Validator {
+        validators.push(ValidatorType {
             pubkey,
             signature: signature_value,
             message: [0u8; VALIDATOR_MESSAGE_BYTES_LENGTH_MAX],
@@ -144,18 +142,16 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
 }
 
 pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
-    trusted_block: &SignedBlock,
+    trusted_validator_set: &[Info],
+    trusted_commit: &Commit,
 ) -> Vec<ValidatorHashField<F>> {
     let mut trusted_validator_fields = Vec::new();
 
-    let validator_set = ValidatorSet::new(
-        trusted_block.validator_set.validators.clone(),
-        trusted_block.validator_set.proposer.clone(),
-    );
+    let validator_set = TendermintValidatorSet::new(trusted_validator_set.to_vec(), None);
 
     let block_validators = validator_set.validators();
 
-    for i in 0..trusted_block.commit.signatures.len() {
+    for i in 0..trusted_commit.signatures.len() {
         let validator = Box::new(match validator_set.validator(block_validators[i].address) {
             Some(validator) => validator,
             None => continue, // Cannot find matching validator, so we skip the vote
@@ -189,23 +185,20 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
 }
 
 pub fn update_present_on_trusted_header<F: RichField>(
-    target_validators: &mut [Validator<F>],
-    target_block: &SignedBlock,
-    start_block: &SignedBlock,
+    target_validators: &mut [ValidatorType<F>],
+    target_commit: &Commit,
+    target_block_validators: &[Info],
+    trusted_block_validators: &[Info],
 ) {
-    // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
+    // Parse each block to compute the validators that are the same from trusted_block to target_block, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;
 
     let threshold = 1_f64 / 3_f64;
 
-    let target_block_validator_set = ValidatorSet::new(
-        target_block.validator_set.validators.clone(),
-        target_block.validator_set.proposer.clone(),
-    );
-    let start_block_validator_set = ValidatorSet::new(
-        start_block.validator_set.validators.clone(),
-        start_block.validator_set.proposer.clone(),
-    );
+    let target_block_validator_set =
+        TendermintValidatorSet::new(target_block_validators.to_vec(), None);
+    let start_block_validator_set =
+        TendermintValidatorSet::new(trusted_block_validators.to_vec(), None);
 
     let target_block_total_voting_power = target_block_validator_set.total_voting_power().value();
 
@@ -229,8 +222,8 @@ pub fn update_present_on_trusted_header<F: RichField>(
                 .position(|x| *x == target_block_validator)
                 .unwrap();
 
-            // Confirm that the validator has signed on block_2
-            for sig in target_block.commit.signatures.iter() {
+            // Confirm that the validator has signed on target_block.
+            for sig in target_commit.signatures.iter() {
                 if sig.validator_address().is_some()
                     && sig.validator_address().unwrap() == target_block_validator.address
                 {

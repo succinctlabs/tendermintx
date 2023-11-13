@@ -174,7 +174,7 @@ mod tests {
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
         // This is from block 3000 with requested block 3100
         let input_bytes = hex::decode(
-            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb80000000000000c1c",
+            "0000000000000bb8a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000c1c",
         )
         .unwrap();
 

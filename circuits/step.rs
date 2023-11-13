@@ -156,9 +156,9 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
-        // This is from block 3000
+        // This is from block 3000 on Celestia mainet.
         let input_bytes = hex::decode(
-            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb8",
+            "0000000000000bb8a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a",
         )
         .unwrap();
 
