@@ -64,7 +64,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let validator_set = TendermintValidatorSet::new(block_validators.to_vec(), None);
-    let block_validators = validator_set.validators();
 
     // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
     for i in 0..signed_header.commit.signatures.len() {

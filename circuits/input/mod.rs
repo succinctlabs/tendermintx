@@ -7,7 +7,7 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use log::info;
+use log::{info, debug};
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
 use tendermint::block::signed_header::SignedHeader;
@@ -99,7 +99,7 @@ impl InputDataFetcher {
             let target_block_validators = self.get_validator_set_from_number(curr_end_block).await;
             let target_validator_set = TendermintValidatorSet::new(target_block_validators, None);
 
-            let target_block_commit = self.get_signed_header_from_block(curr_end_block).await;
+            let target_block_commit = self.get_signed_header_from_number(curr_end_block).await;
 
             if is_valid_skip(
                 start_validator_set,
@@ -114,7 +114,7 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_signed_header_from_block(&self, block_number: u64) -> SignedHeader {
+    pub async fn get_signed_header_from_number(&self, block_number: u64) -> SignedHeader {
         let file_name = format!(
             "{}/{}/commit.json",
             self.fixture_path,
@@ -294,12 +294,18 @@ impl InputDataFetcher {
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     ) {
-        println!("Getting step inputs");
-        let prev_header = self.get_header_from_number(prev_block_number).await;
-        assert_eq!(prev_header.hash().as_bytes(), prev_header_hash.as_bytes());
+        debug!("Getting step inputs");
+        let prev_block_signed_header = self.get_signed_header_from_number(prev_block_number).await;
+        let prev_header = prev_block_signed_header.header;
+        assert_eq!(
+            prev_header.hash().as_bytes(),
+            prev_header_hash.as_bytes(),
+            "Prev header hash 
+        doesn't pass sanity check"
+        );
 
         let next_block_signed_header = self
-            .get_signed_header_from_block(prev_block_number + 1)
+            .get_signed_header_from_number(prev_block_number + 1)
             .await;
         let next_block_validators = self
             .get_validator_set_from_number(prev_block_number + 1)
@@ -372,7 +378,7 @@ impl InputDataFetcher {
         Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
     ) {
         let trusted_signed_header = self
-            .get_signed_header_from_block(trusted_block_number)
+            .get_signed_header_from_number(trusted_block_number)
             .await;
         let trusted_block_validator_set = self
             .get_validator_set_from_number(trusted_block_number)
@@ -382,7 +388,9 @@ impl InputDataFetcher {
             computed_trusted_header_hash.as_bytes(),
             trusted_block_hash.as_bytes()
         );
-        let target_signed_header = self.get_signed_header_from_block(target_block_number).await;
+        let target_signed_header = self
+            .get_signed_header_from_number(target_block_number)
+            .await;
         let target_block_header = target_signed_header.header.hash();
         let round_present = target_signed_header.commit.round.value() != 0;
         let target_block_validator_set = self
