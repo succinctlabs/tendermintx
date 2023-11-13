@@ -132,7 +132,7 @@ pub(crate) mod tests {
     use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES};
     use crate::input::tendermint_utils::{generate_proofs_from_header, proofs_from_byte_slices};
     use crate::input::utils::{convert_to_h256, get_path_indices};
-    use crate::input::{InputDataFetcher, InputDataMode};
+    use crate::input::InputDataFetcher;
 
     #[test]
     fn test_marshal_tendermint_validator() {
@@ -261,9 +261,7 @@ pub(crate) mod tests {
         let circuit = builder.build();
 
         // Generate test cases from Celestia mocha-4 header 10000:
-        let mut input_data_fetcher = InputDataFetcher::default();
-        input_data_fetcher.mode = InputDataMode::Rpc;
-        input_data_fetcher.save = true;
+        let input_data_fetcher = InputDataFetcher::default();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");
         let header =

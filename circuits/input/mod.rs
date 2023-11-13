@@ -7,14 +7,11 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use log::{debug, info};
+use log::info;
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
-use tendermint::account::Id;
 use tendermint::block::signed_header::SignedHeader;
 use tendermint::validator::{Info, Set as TendermintValidatorSet};
-use tendermint::vote::Power;
-use tendermint::PublicKey;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
@@ -217,43 +214,6 @@ impl InputDataFetcher {
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
         v
     }
-
-    // pub async fn get_block_from_number(&self, block_number: u64) -> Box<SignedBlock> {
-    //     let file_name = format!(
-    //         "{}/{}/signed_block.json",
-    //         self.fixture_path,
-    //         block_number.to_string().as_str()
-    //     );
-
-    //     let fetched_result = match &self.mode {
-    //         InputDataMode::Rpc => {
-    //             let query_url = format!(
-    //                 "{}/signed_block?height={}",
-    //                 self.url,
-    //                 block_number.to_string().as_str()
-    //             );
-    //             info!("Querying url {:?}", query_url.as_str());
-    //             let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-    //             if self.save {
-    //                 // Ensure the directory exists
-    //                 if let Some(parent) = Path::new(&file_name).parent() {
-    //                     fs::create_dir_all(parent).unwrap();
-    //                 }
-    //                 fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
-    //             }
-    //             res
-    //         }
-    //         InputDataMode::Fixture => {
-    //             let file_content = fs::read_to_string(file_name.as_str());
-    //             info!("File name: {}", file_name.as_str());
-    //             file_content.unwrap()
-    //         }
-    //     };
-    //     let v: SignedBlockResponse =
-    //         serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-    //     let block = v.result;
-    //     Box::new(block)
-    // }
 
     pub async fn get_header_from_number(&self, block_number: u64) -> Header {
         let file_name = format!(
