@@ -145,8 +145,8 @@ impl TendermintXOperator {
     }
 
     async fn run(&self) {
-        // Loop every 10 minutes.
-        const LOOP_DELAY: u64 = 10;
+        // Loop every 240 minutes.
+        const LOOP_DELAY: u64 = 240;
 
         // The upper limit of the largest skip that can be requested. This is bounded by the unbonding
         // period, which for most Tendermint chains is ~2 weeks, or ~100K blocks. This is set to 10K to
@@ -159,9 +159,8 @@ impl TendermintXOperator {
             let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
             let latest_block = latest_signed_header.header.height.value();
 
-            // Subtract 2 blocks to account for the time it takes for a block to be processed by
-            // consensus.
-            let max_end_block = std::cmp::min(latest_block - 2, current_block + skip_max);
+            // Get the maximum block height we can request.
+            let max_end_block = std::cmp::min(latest_block, current_block + skip_max);
 
             let target_block = self
                 .data_fetcher
