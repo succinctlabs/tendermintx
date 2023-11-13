@@ -156,8 +156,8 @@ impl TendermintXOperator {
             let current_block = self.contract.latest_block().await.unwrap();
 
             // Get the head of the chain.
-            let latest_header = self.data_fetcher.get_latest_header().await;
-            let latest_block = latest_header.height.value();
+            let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
+            let latest_block = latest_signed_header.header.height.value();
 
             // Subtract 2 blocks to account for the time it takes for a block to be processed by
             // consensus.

@@ -17,8 +17,8 @@ use tendermint_proto::Protobuf;
 
 use self::conversion::update_present_on_trusted_header;
 use self::tendermint_utils::{
-    generate_proofs_from_header, is_valid_skip, CommitResponse, Hash, Header, HeaderResponse,
-    Proof, ValidatorSetResponse,
+    generate_proofs_from_header, is_valid_skip, CommitResponse, Hash, Header, Proof,
+    ValidatorSetResponse,
 };
 use self::utils::convert_to_h256;
 use crate::consts::{
@@ -28,6 +28,7 @@ use crate::consts::{
 use crate::input::conversion::{get_validator_data_from_block, validator_hash_field_from_block};
 use crate::variables::*;
 
+#[derive(Debug, PartialEq)]
 pub enum InputDataMode {
     Rpc,
     Fixture,
@@ -77,11 +78,17 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    pub async fn get_latest_header(&self) -> Header {
-        let query_url = format!("{}/header", self.url);
-        let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-        let v: HeaderResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
-        v.result.header
+    // Get the latest signed header from the RPC endpoint.
+    // Note: Only used in script.
+    pub async fn get_latest_signed_header(&self) -> SignedHeader {
+        if self.mode == InputDataMode::Rpc {
+            let query_url = format!("{}/commit", self.url);
+            let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
+            let v: CommitResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
+            v.result.signed_header
+        } else {
+            panic!("get_latest_signed_header is only supported in RPC mode")
+        }
     }
 
     // Search to find the highest block number to call request_combined_skip on. If the search
@@ -214,41 +221,6 @@ impl InputDataFetcher {
         let v: ValidatorSetResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
         v
-    }
-
-    pub async fn get_header_from_number(&self, block_number: u64) -> Header {
-        let file_name = format!(
-            "{}/{}/header.json",
-            self.fixture_path,
-            block_number.to_string().as_str()
-        );
-        let fetched_result = match &self.mode {
-            InputDataMode::Rpc => {
-                let query_url = format!(
-                    "{}/header?height={}",
-                    self.url,
-                    block_number.to_string().as_str()
-                );
-                info!("Querying url {:?}", query_url.as_str());
-                let res = reqwest::get(query_url).await.unwrap().text().await.unwrap();
-                if self.save {
-                    // Ensure the directory exists
-                    if let Some(parent) = Path::new(&file_name).parent() {
-                        fs::create_dir_all(parent).unwrap();
-                    }
-                    fs::write(file_name.as_str(), res.as_bytes()).expect("Unable to write file");
-                }
-                res
-            }
-            InputDataMode::Fixture => {
-                let file_content = fs::read_to_string(file_name.as_str());
-                info!("Fixture name: {}", file_name.as_str());
-                file_content.unwrap()
-            }
-        };
-        let v: HeaderResponse =
-            serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        v.result.header
     }
 
     pub fn get_merkle_proof(
@@ -458,10 +430,10 @@ pub(crate) mod tests {
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_header() {
         let data_fetcher = super::InputDataFetcher::default();
-        let header = data_fetcher.get_header_from_number(3000).await;
+        let signed_header = data_fetcher.get_signed_header_from_number(3000).await;
         println!(
             "Header: {:?}",
-            String::from_utf8(hex::encode(header.hash()))
+            String::from_utf8(hex::encode(signed_header.header.hash()))
         );
     }
 }
