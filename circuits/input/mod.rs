@@ -457,7 +457,7 @@ pub(crate) mod tests {
     async fn test_get_header() {
         let mut data_fetcher = super::InputDataFetcher::default();
         data_fetcher.mode = super::InputDataMode::Rpc;
-        let header = data_fetcher.get_signed_header_from_block(12320000).await;
+        let header = data_fetcher.get_signed_header_from_number(12320000).await;
         println!(
             "Header: {:?}",
             String::from_utf8(hex::encode(header.header.hash()))
