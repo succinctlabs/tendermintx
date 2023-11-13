@@ -9,7 +9,7 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
-use crate::input::InputDataFetcher;
+use crate::input::{InputDataFetcher, InputDataMode};
 use crate::variables::*;
 
 pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
@@ -79,6 +79,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::default();
+        data_fetcher.mode = InputDataMode::Rpc;
         let result = data_fetcher
             .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
                 trusted_block,
@@ -255,14 +256,14 @@ mod tests {
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_large() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 100;
+        const MAX_VALIDATOR_SET_SIZE: usize = 150;
         let trusted_header: [u8; 32] =
-            hex::decode("935786C7F889013D6B0D8DE8B11286DDB8DDE476A312FC5578FDC53985DC3035")
+            hex::decode("9928728c76ceacbdd6212bf3f05ee20686895d84f735d91ad042e4cf19ec440c")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let trusted_height = 15000u64;
-        let target_block = 50000u64;
+        let trusted_height = 12320000u64;
+        let target_block = 12320500u64;
         test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
     }
 }

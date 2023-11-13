@@ -13,7 +13,7 @@ contract FunctionIdScript is Script {
         vm.startBroadcast();
         // Use the below to interact with an already deployed ZK light client.
         TendermintX lightClient = TendermintX(
-            0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2
+            0xd4a723C4dd8a961ACcbC5a42f05862C63B32B701
         );
 
         bytes32 stepFunctionId = hex"2569c8472d303fedd0ef9243c3ed0187d8ec34f03cff595c811296b8fbd1fc79";

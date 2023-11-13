@@ -295,8 +295,11 @@ impl InputDataFetcher {
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     ) {
         println!("Getting step inputs");
-        let prev_header = self.get_header_from_number(prev_block_number).await;
-        assert_eq!(prev_header.hash().as_bytes(), prev_header_hash.as_bytes());
+        let prev_header = self.get_signed_header_from_block(prev_block_number).await;
+        assert_eq!(
+            prev_header.header.hash().as_bytes(),
+            prev_header_hash.as_bytes()
+        );
 
         let next_block_signed_header = self
             .get_signed_header_from_block(prev_block_number + 1)
@@ -340,9 +343,9 @@ impl InputDataFetcher {
         );
 
         let prev_block_next_validators_hash_proof = self.get_inclusion_proof(
-            &prev_header,
+            &prev_header.header,
             NEXT_VALIDATORS_HASH_INDEX as u64,
-            prev_header.next_validators_hash.encode_vec(),
+            prev_header.header.next_validators_hash.encode_vec(),
         );
         let round_present = next_block_signed_header.commit.round.value() != 0;
         let next_block_header = next_block_signed_header.header.hash();
@@ -447,11 +450,12 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn test_get_header() {
-        let data_fetcher = super::InputDataFetcher::default();
-        let header = data_fetcher.get_header_from_number(3000).await;
+        let mut data_fetcher = super::InputDataFetcher::default();
+        data_fetcher.mode = super::InputDataMode::Rpc;
+        let header = data_fetcher.get_signed_header_from_block(12320000).await;
         println!(
             "Header: {:?}",
-            String::from_utf8(hex::encode(header.hash()))
+            String::from_utf8(hex::encode(header.header.hash()))
         );
     }
 }
