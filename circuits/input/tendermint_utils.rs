@@ -58,7 +58,12 @@ pub struct SignedBlockResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CommitResponse {
-    pub result: SignedHeader,
+    pub result: SignedHeaderWrapper,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignedHeaderWrapper {
+    pub signed_header: SignedHeader,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,8 +75,8 @@ pub struct ValidatorSetResponse {
 pub struct BlockValidatorSet {
     pub block_height: String,
     pub validators: Vec<Info>,
-    pub count: i64,
-    pub total: i64,
+    pub count: String,
+    pub total: String,
 }
 
 #[derive(Debug, Deserialize)]

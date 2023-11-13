@@ -7,11 +7,14 @@ use std::path::Path;
 use std::{env, fs};
 
 use ethers::types::H256;
-use log::info;
+use log::{debug, info};
 use plonky2x::frontend::merkle::tree::InclusionProof;
 use plonky2x::prelude::RichField;
+use tendermint::account::Id;
 use tendermint::block::signed_header::SignedHeader;
 use tendermint::validator::{Info, Set as TendermintValidatorSet};
+use tendermint::vote::Power;
+use tendermint::PublicKey;
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
@@ -47,7 +50,7 @@ impl Default for InputDataFetcher {
 
         let url = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
-        Self::new(&url, "./circuits/fixtures/celestia")
+        Self::new(&url, "./circuits/fixtures/mocha-4")
     }
 }
 
@@ -147,7 +150,7 @@ impl InputDataFetcher {
         };
         let v: CommitResponse =
             serde_json::from_str(&fetched_result).expect("Failed to parse JSON");
-        v.result
+        v.result.signed_header
     }
 
     pub async fn get_validator_set_from_number(&self, block_number: u64) -> Vec<Info> {
@@ -157,10 +160,14 @@ impl InputDataFetcher {
         let mut num_so_far = 0;
         loop {
             let fetched_result = self.fetch_validator_result(block_number, page_number).await;
-            validators.extend(fetched_result.result.validators);
-            num_so_far += fetched_result.result.count;
 
-            if num_so_far > fetched_result.result.total {
+            validators.extend(fetched_result.result.validators);
+            // Parse count to u32.
+            let parsed_count: u32 = fetched_result.result.count.parse().unwrap();
+            let parsed_total: u32 = fetched_result.result.total.parse().unwrap();
+            num_so_far += parsed_count;
+
+            if num_so_far >= parsed_total {
                 break;
             }
             page_number += 1;
@@ -184,7 +191,7 @@ impl InputDataFetcher {
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
                 let query_url = format!(
-                    "{}/validators?height={}?per_page=100?page={}",
+                    "{}/validators?height={}&per_page=100&page={}",
                     self.url,
                     block_number.to_string().as_str(),
                     page_number.to_string().as_str()
@@ -471,5 +478,20 @@ impl InputDataFetcher {
             trusted_block_validator_hash_proof,
             trusted_block_validator_fields,
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use subtle_encoding::hex;
+
+    #[tokio::test]
+    async fn test_get_header() {
+        let data_fetcher = super::InputDataFetcher::default();
+        let header = data_fetcher.get_header_from_number(3000).await;
+        println!(
+            "Header: {:?}",
+            String::from_utf8(hex::encode(header.hash()))
+        );
     }
 }

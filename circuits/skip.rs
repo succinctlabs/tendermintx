@@ -9,7 +9,7 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
-use crate::input::InputDataFetcher;
+use crate::input::{InputDataFetcher, InputDataMode};
 use crate::variables::*;
 
 pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
@@ -79,6 +79,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         let trusted_header_hash = input_stream.read_value::<Bytes32Variable>();
         let target_block = input_stream.read_value::<U64Variable>();
         let mut data_fetcher = InputDataFetcher::default();
+        data_fetcher.mode = InputDataMode::Rpc;
+        data_fetcher.save = true;
         let result = data_fetcher
             .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, L::Field>(
                 trusted_block,
@@ -174,7 +176,7 @@ mod tests {
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
         // This is from block 3000 with requested block 3100
         let input_bytes = hex::decode(
-            "a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000bb80000000000000c1c",
+            "0000000000000bb8057111b3cf420c45bf68dc807bd3728d75f352f3169a9ae48a6e6b876a16cb9f0000000000000c1c",
         )
         .unwrap();
 
