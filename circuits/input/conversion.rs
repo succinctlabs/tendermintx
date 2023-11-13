@@ -64,7 +64,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
     // Signatures or dummy
     // Need signature to output either verify or no verify (then we can assert that it matches or doesn't match)
     let validator_set = TendermintValidatorSet::new(block_validators.to_vec(), None);
-    let block_validators = validator_set.validators();
 
     // Exclude invalid validators (i.e. those that are malformed & are not included in the validator set).
     for i in 0..signed_header.commit.signatures.len() {
@@ -189,9 +188,9 @@ pub fn update_present_on_trusted_header<F: RichField>(
     target_validators: &mut [ValidatorType<F>],
     target_commit: &Commit,
     target_block_validators: &[Info],
-    start_block_validators: &[Info],
+    trusted_block_validators: &[Info],
 ) {
-    // Parse each block to compute the validators that are the same from block_1 to block_2, and the cumulative voting power of the shared validators
+    // Parse each block to compute the validators that are the same from trusted_block to target_block, and the cumulative voting power of the shared validators
     let mut shared_voting_power = 0;
 
     let threshold = 1_f64 / 3_f64;
@@ -199,7 +198,7 @@ pub fn update_present_on_trusted_header<F: RichField>(
     let target_block_validator_set =
         TendermintValidatorSet::new(target_block_validators.to_vec(), None);
     let start_block_validator_set =
-        TendermintValidatorSet::new(start_block_validators.to_vec(), None);
+        TendermintValidatorSet::new(trusted_block_validators.to_vec(), None);
 
     let target_block_total_voting_power = target_block_validator_set.total_voting_power().value();
 
@@ -223,7 +222,7 @@ pub fn update_present_on_trusted_header<F: RichField>(
                 .position(|x| *x == target_block_validator)
                 .unwrap();
 
-            // Confirm that the validator has signed on block_2
+            // Confirm that the validator has signed on target_block.
             for sig in target_commit.signatures.iter() {
                 if sig.validator_address().is_some()
                     && sig.validator_address().unwrap() == target_block_validator.address
