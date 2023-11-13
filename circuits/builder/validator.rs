@@ -260,7 +260,7 @@ pub(crate) mod tests {
         builder.write(root);
         let circuit = builder.build();
 
-        // Generate test cases from Celestia block:
+        // Generate test cases from Celestia mocha-4 header 10000:
         let input_data_fetcher = InputDataFetcher::default();
 
         let rt = Runtime::new().expect("failed to create tokio runtime");

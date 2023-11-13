@@ -56,7 +56,7 @@ pub type BlockIDInclusionProofVariable =
 /// A validator is marked as signed if it has signed the block. A validator is marked as present on
 /// trusted header if it is a part of the validator set for the trusted header (only used in skip).
 #[derive(Debug, Clone, CircuitVariable)]
-#[value_name(Validator)]
+#[value_name(ValidatorType)]
 pub struct ValidatorVariable {
     pub pubkey: CompressedEdwardsYVariable,
     pub signature: EDDSASignatureVariable,
