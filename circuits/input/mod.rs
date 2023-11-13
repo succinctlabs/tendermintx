@@ -84,8 +84,8 @@ impl InputDataFetcher {
         v.result.header
     }
 
-    // Binary search to find the highest block number to call request_combined_skip on. If the
-    // binary search returns start_block + 1, then we call request_combined_step instead.
+    // Search to find the highest block number to call request_combined_skip on. If the search
+    // returns start_block + 1, then we call request_combined_step instead.
     pub async fn find_block_to_request(&self, start_block: u64, max_end_block: u64) -> u64 {
         let mut curr_end_block = max_end_block;
         loop {
@@ -161,9 +161,10 @@ impl InputDataFetcher {
             validators.extend(fetched_result.result.validators);
             // Parse count to u32.
             let parsed_count: u32 = fetched_result.result.count.parse().unwrap();
+            // Parse total to u32.
             let parsed_total: u32 = fetched_result.result.total.parse().unwrap();
-            num_so_far += parsed_count;
 
+            num_so_far += parsed_count;
             if num_so_far >= parsed_total {
                 break;
             }
@@ -454,6 +455,7 @@ pub(crate) mod tests {
     use subtle_encoding::hex;
 
     #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_header() {
         let data_fetcher = super::InputDataFetcher::default();
         let header = data_fetcher.get_header_from_number(3000).await;
