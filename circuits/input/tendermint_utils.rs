@@ -466,7 +466,7 @@ pub fn is_valid_skip(
         if let Some(target_block_validator) =
             target_validator_set.validator(start_block_validators[start_block_idx].address)
         {
-            // Confirm that the validator has signed on block_2
+            // Confirm that the validator has signed on target_block.
             for sig in target_block_commit.signatures.iter() {
                 if sig.validator_address().is_some()
                     && sig.validator_address().unwrap() == target_block_validator.address
