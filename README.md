@@ -22,9 +22,16 @@ This is rarely used, as `step` will only be invoked when the validator set chang
 The circuits are currently available on Succinct X [here](https://platform.succinct.xyz/succinctlabs/tendermintx).
 
 There are currently TendermintX light clients tracking the following networks on Goerli:
+- [dYdX](https://goerli.etherscan.io/address/0x59eE2D9CFaC933c79Cc1D1d6767679636c0b539D#events)
+- [Osmosis](https://goerli.etherscan.io/address/0xd4a723C4dd8a961ACcbC5a42f05862C63B32B701#events)
 - [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2)
 
-## Integrate
+## Integrate TendermintX
+Fork this repository.
+- Update the `VALIDATOR_SET_SIZE_MAX` in `bin/step.rs` and `bin/skip.rs` (ex. 150 for Osmosis, 60 for dYdX)
+
+
+
 Deploy a `TendermintX` contract.
 ```
 forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX
