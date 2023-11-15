@@ -24,7 +24,7 @@ The circuits are currently available on Succinct X [here](https://platform.succi
 There are currently TendermintX light clients tracking the following networks on Goerli:
 - [dYdX](https://goerli.etherscan.io/address/0x59eE2D9CFaC933c79Cc1D1d6767679636c0b539D#events)
 - [Osmosis](https://goerli.etherscan.io/address/0xd4a723C4dd8a961ACcbC5a42f05862C63B32B701#events)
-- [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2)
+- [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2#events)
 
 ## Integrate TendermintX
 1. Fork this repository: https://github.com/succinctlabs/tendermintx
