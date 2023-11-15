@@ -41,7 +41,7 @@ impl TendermintXOperator {
     pub fn new() -> Self {
         let config = Self::get_config();
 
-        let ethereum_rpc_url = env::var("RPC_URL").expect("RPC_URL must be set");
+        let ethereum_rpc_url = env::var("ETHEREUM_RPC_URL").expect("ETHEREUM_RPC_URL must be set");
         let provider =
             Provider::<Http>::try_from(ethereum_rpc_url).expect("could not connect to client");
 
