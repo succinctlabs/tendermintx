@@ -12,9 +12,8 @@ contract GenesisScript is Script {
     function run() public {
         vm.startBroadcast();
         // Use the below to interact with an already deployed ZK light client.
-        TendermintX lightClient = TendermintX(
-            0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2
-        );
+        address lightClientAddress = vm.envAddress("CONTRACT_ADDRESS");
+        TendermintX lightClient = TendermintX(lightClientAddress);
 
         uint64 height = 1;
         bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
