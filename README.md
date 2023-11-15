@@ -46,7 +46,7 @@ There are currently TendermintX light clients tracking the following networks on
 forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX
 ```
 
-9. Add `CONTRACT_ADDRESS` to your `contract/.env`. Then, update the function ID's and genesis parameters on the `TendermintX` contract.
+9. Add `CONTRACT_ADDRESS` to your `contracts/.env`. Then, run the following scripts to update the function ID's and genesis parameters on the `TendermintX` contract.
 ```
 forge script script/Genesis.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 
