@@ -15,8 +15,9 @@ contract GenesisScript is Script {
         address lightClientAddress = vm.envAddress("CONTRACT_ADDRESS");
         TendermintX lightClient = TendermintX(lightClientAddress);
 
-        uint64 height = 1;
-        bytes32 header = hex"6be39efd10ba412a9db5288488303f5dd32cf386707a5bef33617f4c43301872";
+        uint64 height = uint64(vm.envUint("GENESIS_HEIGHT"));
+
+        bytes32 header = vm.envBytes32("GENESIS_HEADER");
         lightClient.setGenesisHeader(height, header);
     }
 }
