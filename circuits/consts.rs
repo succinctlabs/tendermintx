@@ -1,5 +1,8 @@
 pub use tendermint::merkle::HASH_SIZE;
 
+/// The number of validators on the Tendermint chain.
+pub const VALIDATOR_SET_SIZE_MAX: usize = 100;
+
 /// The number of bits in a protobuf-encoded SHA256 hash.
 pub const PROTOBUF_HASH_SIZE_BYTES: usize = HASH_SIZE + 2;
 

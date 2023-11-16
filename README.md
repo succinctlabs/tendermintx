@@ -29,7 +29,7 @@ There are currently TendermintX light clients tracking the following networks on
 ## Integrate TendermintX
 1. Fork this repository: https://github.com/succinctlabs/tendermintx
 
-2. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `bin/step.rs` and `bin/skip.rs` (ex. 150 for Osmosis, 60 for dYdX).
+2. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `circuits/consts.rs` (ex. 150 for Osmosis, 60 for dYdX).
 
 3. Sign up for an account on the [Succinct Platform](https://alpha.succinct.xyz/).
 
@@ -41,19 +41,14 @@ There are currently TendermintX light clients tracking the following networks on
 
 7. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
 
-8. Open your fork of `TendermintX`. Add the contract `.env` variables to `contracts/.env` (everything except `CONTRACT_ADDRESS`). Then deploy your `TendermintX` contract.
+8. Open your fork of `TendermintX`. Add the contract `.env` variables to `contracts/.env`. Then deploy your `TendermintX` contract (run forge install if necessary).
 ```
-forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --constructor-args 0x6e4f1e9ea315ebfd69d18c2db974eef6105fb803 --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX
+forge install
+
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX --broadcast
 ```
 
-9. Add `CONTRACT_ADDRESS` to your `contracts/.env`. Then, run the following scripts to update the function ID's and genesis parameters on the `TendermintX` contract.
-```
-forge script script/Genesis.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
-
-forge script script/FunctionId.s.sol --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
-```
-
-10. Update `.env` variables in `.env`. Then, run `TendermintX` script to update the light client continuously. 
+9. Update `.env` variables in `.env`. Then, run `TendermintX` script to update the light client continuously. 
 
 ```
 cargo run --bin tendermintx --release
