@@ -15,9 +15,9 @@
 //!
 //!
 use plonky2x::backend::function::Plonky2xFunction;
+use tendermintx::consts::VALIDATOR_SET_SIZE_MAX;
 use tendermintx::step::StepCircuit;
 
 fn main() {
-    const VALIDATOR_SET_SIZE_MAX: usize = 100;
     StepCircuit::<VALIDATOR_SET_SIZE_MAX>::entrypoint();
 }
