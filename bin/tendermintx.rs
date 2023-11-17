@@ -144,6 +144,30 @@ impl TendermintXOperator {
         Ok(request_id)
     }
 
+    async fn is_consistent(&self, current_block: u64) {
+        let expected_current_signed_header = self
+            .data_fetcher
+            .get_signed_header_from_number(current_block)
+            .await;
+        let expected_header = expected_current_signed_header.header.hash();
+        let expected_header_bytes = expected_header.as_bytes();
+        let contract_current_header = self
+            .contract
+            .block_height_to_header_hash(current_block)
+            .await
+            .unwrap();
+        if expected_header_bytes != contract_current_header {
+            panic!(
+                "Current header in the contract does not match chain's header hash for block {:?}\n 
+                From Tendermint RPC: {:?}\n 
+                From contract: {:?}",
+                current_block,
+                String::from_utf8(hex::encode(expected_header)),
+                String::from_utf8(hex::encode(contract_current_header))
+            );
+        }
+    }
+
     async fn run(&self) {
         // Loop every 240 minutes.
         const LOOP_DELAY: u64 = 240;
@@ -154,6 +178,11 @@ impl TendermintXOperator {
         let skip_max = 10000;
         loop {
             let current_block = self.contract.latest_block().await.unwrap();
+
+            // Consistency check for the headers (this should only happen if an invalid header,
+            // typically the genesis header, is pushed to the contract). If this is triggered,
+            // double check the genesis header in the contract.
+            self.is_consistent(current_block).await;
 
             // Get the head of the chain.
             let latest_signed_header = self.data_fetcher.get_latest_signed_header().await;
