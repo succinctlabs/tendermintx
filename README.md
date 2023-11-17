@@ -33,36 +33,36 @@ There are currently TendermintX light clients tracking the following networks on
 
 3. Go to the [Succinct Platform](https://alpha.succinct.xyz).
 
-3. Sign up for an account on the platform.
+4. Sign up for an account on the platform.
 
-4. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
+5. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
 
-5. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
+6. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
 
-6. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
+7. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
 
-7. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
+8. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
 
-8. Open the code for your fork of `TendermintX` again.
+9. Open the code for your fork of `TendermintX` again.
 
-8. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+10. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
 
-9. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
+11. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
 ```
 forge install
 
 forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX --broadcast
 ```
 
-10. Request a `SUCCINCT_API_KEY` from the platform if you have not already. Update `.env` according to `.env.example`. 
+12. Request a `SUCCINCT_API_KEY` from the platform if you have not already. Update `.env` according to `.env.example`. 
 
-11. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
+13. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
 
 ```
 cargo run --bin tendermintx --release
 ```
 
-12. Now, go the platform to monitor the status of your proofs. Generating a Tendermint LC proof takes anywhere from 4-15 minutes, depending on your validator set size!
+14. Now, go the platform to monitor the status of your proofs. Generating a Tendermint LC proof takes anywhere from 4-15 minutes, depending on your validator set size.
 
 ### Tendermint RPC's
 To find a list of RPC's for most Tendermint chains, check out [this page](https://deving.zone/en/cosmos/chains) created by @deving_zone.
