@@ -291,7 +291,7 @@ impl InputDataFetcher {
         assert_eq!(
             next_block_validators.len(),
             VALIDATOR_SET_SIZE_MAX,
-            "validator set size needs to be the provided validator_set_size_max"
+            "Validator set size needs to be the provided validator_set_size_max."
         );
 
         let next_block_validators_hash_proof = self.get_inclusion_proof(
@@ -359,7 +359,9 @@ impl InputDataFetcher {
         let computed_trusted_header_hash = trusted_signed_header.header.hash();
         assert_eq!(
             computed_trusted_header_hash.as_bytes(),
-            trusted_block_hash.as_bytes()
+            trusted_block_hash.as_bytes(),
+            "Trusted header hash doesn't pass sanity check! An incorrect header was likely pushed 
+            to the contract, typically the genesis header."
         );
         let target_signed_header = self
             .get_signed_header_from_number(target_block_number)
