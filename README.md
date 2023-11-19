@@ -27,36 +27,38 @@ There are currently TendermintX light clients tracking the following networks on
 - [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2#events)
 
 ## Integrate TendermintX
-1. Fork this repository: https://github.com/succinctlabs/tendermintx
+1. Request a Succinct Platform API Key: https://alpha.succinct.xyz/partner
 
-2. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `circuits/consts.rs` (ex. 150 for Osmosis, 60 for dYdX). Push the changes to your fork.
+2. Fork this repository: https://github.com/succinctlabs/tendermintx
 
-3. Go to the [Succinct Platform](https://alpha.succinct.xyz).
+3. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `circuits/consts.rs` (ex. 150 for Osmosis, 60 for dYdX). Push the changes to your fork.
 
-4. Sign up for an account on the platform.
+4. Go to the [Succinct Platform](https://alpha.succinct.xyz).
 
-5. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
+5. Sign up for an account on the platform.
 
-6. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
+6. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
 
-7. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
+7. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
 
-8. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
+8. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
 
-9. Open the code for your fork of `TendermintX` again.
+9. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
 
-10. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+10. Open the code for your fork of `TendermintX` again.
 
-11. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
+11. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+
+12. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
 ```
 forge install
 
 forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX --broadcast
 ```
 
-12. Request a `SUCCINCT_API_KEY` from the platform if you have not already. Update `.env` according to `.env.example`. 
+13. Update `.env` according to `.env.example`. 
 
-13. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
+14. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
 
 ```
 cargo run --bin tendermintx --release
