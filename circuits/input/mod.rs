@@ -42,6 +42,34 @@ pub struct InputDataFetcher {
     pub save: bool,
 }
 
+pub struct StepInputs<F: RichField> {
+    pub next_header: [u8; 32],
+    pub round_present: bool,
+    pub next_block_validators: Vec<ValidatorType<F>>,
+    pub nb_validators: usize,
+    pub next_block_validators_hash_proof:
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
+    pub next_block_last_block_id_proof:
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
+    pub prev_block_next_validators_hash_proof:
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
+}
+
+pub struct SkipInputs<F: RichField> {
+    pub target_block_validators: Vec<ValidatorType<F>>, // validators
+    pub nb_target_validators: usize,                    // nb_validators
+    pub target_header: [u8; 32],                        // target_header
+    pub round_present: bool,                            // round_present
+    pub target_block_height_proof: HeightProofValueType<F>, // target_block_height_proof,
+    pub target_block_validators_hash_proof:
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
+    pub trusted_header: [u8; 32], // trusted_header
+    pub trusted_block_validators_hash_proof:
+        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
+    pub trusted_block_validators_hash_fields: Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
+    pub nb_trusted_validators: usize,                                     // nb_trusted_validators
+}
+
 impl Default for InputDataFetcher {
     fn default() -> Self {
         dotenv::dotenv().ok();
@@ -259,14 +287,7 @@ impl InputDataFetcher {
         &mut self,
         prev_block_number: u64,
         prev_header_hash: H256,
-    ) -> (
-        [u8; 32],
-        bool,
-        Vec<ValidatorType<F>>,
-        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
-        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, F>,
-        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
-    ) {
+    ) -> StepInputs<F> {
         debug!("Getting step inputs");
         let prev_block_signed_header = self.get_signed_header_from_number(prev_block_number).await;
         let prev_header = prev_block_signed_header.header;
@@ -283,6 +304,7 @@ impl InputDataFetcher {
         let next_block_validators = self
             .get_validator_set_from_number(prev_block_number + 1)
             .await;
+        let nb_validators = next_block_validators.len();
 
         let next_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &next_block_validators,
@@ -325,14 +347,15 @@ impl InputDataFetcher {
         );
         let round_present = next_block_signed_header.commit.round.value() != 0;
         let next_block_header = next_block_signed_header.header.hash();
-        (
-            next_block_header.as_bytes().try_into().unwrap(),
+        StepInputs {
+            next_header: next_block_header.as_bytes().try_into().unwrap(),
             round_present,
             next_block_validators,
+            nb_validators,
             next_block_validators_hash_proof,
             next_block_last_block_id_proof,
             prev_block_next_validators_hash_proof,
-        )
+        }
     }
 
     pub async fn get_skip_inputs<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(
@@ -340,22 +363,14 @@ impl InputDataFetcher {
         trusted_block_number: u64,
         trusted_block_hash: H256,
         target_block_number: u64,
-    ) -> (
-        Vec<ValidatorType<F>>,                                           // validators
-        [u8; 32],                                                        // target_header
-        bool,                                                            // round_present
-        HeightProofValueType<F>, // target_block_height_proof,
-        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
-        [u8; 32],                                                        // trusted_header
-        InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // trusted_validators_hash_proof
-        Vec<ValidatorHashField<F>>, // trusted_validators_hash_fields
-    ) {
+    ) -> SkipInputs<F> {
         let trusted_signed_header = self
             .get_signed_header_from_number(trusted_block_number)
             .await;
         let trusted_block_validator_set = self
             .get_validator_set_from_number(trusted_block_number)
             .await;
+        let nb_trusted_validators = trusted_block_validator_set.len();
         let computed_trusted_header_hash = trusted_signed_header.header.hash();
         assert_eq!(
             computed_trusted_header_hash.as_bytes(),
@@ -371,6 +386,7 @@ impl InputDataFetcher {
         let target_block_validator_set = self
             .get_validator_set_from_number(target_block_number)
             .await;
+        let nb_target_validators = target_block_validator_set.len();
         let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
             &target_signed_header,
@@ -400,27 +416,29 @@ impl InputDataFetcher {
             target_signed_header.header.validators_hash.encode_vec(),
         );
 
-        let trusted_block_validator_fields =
+        let trusted_block_validators_hash_fields =
             validator_hash_field_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
                 &trusted_block_validator_set,
                 &trusted_signed_header.commit,
             );
-        let trusted_block_validator_hash_proof = self.get_inclusion_proof(
+        let trusted_block_validators_hash_proof = self.get_inclusion_proof(
             &trusted_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
             trusted_signed_header.header.validators_hash.encode_vec(),
         );
 
-        (
+        SkipInputs {
             target_block_validators,
-            target_block_header.as_bytes().try_into().unwrap(),
+            nb_target_validators,
+            target_header: target_block_header.as_bytes().try_into().unwrap(),
             round_present,
             target_block_height_proof,
             target_block_validators_hash_proof,
-            trusted_block_hash.as_bytes().try_into().unwrap(),
-            trusted_block_validator_hash_proof,
-            trusted_block_validator_fields,
-        )
+            trusted_header: trusted_block_hash.as_bytes().try_into().unwrap(),
+            trusted_block_validators_hash_proof,
+            trusted_block_validators_hash_fields,
+            nb_trusted_validators,
+        }
     }
 }
 

@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ValueStream, VariableStream};
+use plonky2x::frontend::vars::{ValueStream, Variable, VariableStream};
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, Field, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +37,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let round_present = output_stream.read::<BoolVariable>(self);
         let next_block_validators =
             output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+        let nb_validators = output_stream.read::<Variable>(self);
         let next_block_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
         let next_block_last_block_id_proof =
@@ -46,6 +47,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
 
         self.verify_step(
             &next_block_validators,
+            nb_validators,
             &next_header,
             &prev_header_hash,
             &next_block_validators_hash_proof,
@@ -79,13 +81,19 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             )
             .await;
 
-        output_stream.write_value::<Bytes32Variable>(result.0.into()); // next_header
-        output_stream.write_value::<BoolVariable>(result.1); // round_present
+        output_stream.write_value::<Bytes32Variable>(result.next_header.into());
+        output_stream.write_value::<BoolVariable>(result.round_present); // round_present
+        output_stream.write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(
+            result.next_block_validators,
+        );
+        output_stream.write_value::<Variable>(L::Field::from_canonical_usize(result.nb_validators));
         output_stream
-            .write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(result.2);
-        output_stream.write_value::<HashInclusionProofVariable>(result.3);
-        output_stream.write_value::<BlockIDInclusionProofVariable>(result.4);
-        output_stream.write_value::<HashInclusionProofVariable>(result.5);
+            .write_value::<HashInclusionProofVariable>(result.next_block_validators_hash_proof);
+        output_stream
+            .write_value::<BlockIDInclusionProofVariable>(result.next_block_last_block_id_proof);
+        output_stream.write_value::<HashInclusionProofVariable>(
+            result.prev_block_next_validators_hash_proof,
+        );
     }
 }
 
