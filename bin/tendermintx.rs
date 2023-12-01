@@ -173,9 +173,9 @@ impl TendermintXOperator {
         const LOOP_DELAY: u64 = 240;
 
         // The upper limit of the largest skip that can be requested. This is bounded by the unbonding
-        // period, which for most Tendermint chains is ~2 weeks, or ~100K blocks. This is set to 10K to
-        // be safe, which is ~1 day.
-        let skip_max = 10000;
+        // period, which for most Tendermint chains is ~2 weeks, or ~100K blocks with a block time
+        // of 12s.
+        let skip_max = self.contract.skip_max().await.unwrap();
         loop {
             let current_block = self.contract.latest_block().await.unwrap();
 
