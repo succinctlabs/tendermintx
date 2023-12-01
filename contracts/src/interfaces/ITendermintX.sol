@@ -29,8 +29,9 @@ interface ITendermintX {
     /// @notice Latest header not found.
     error LatestHeaderNotFound();
 
-    /// @notice Target block for proof must be greater than latest block.
-    error TargetLessThanLatest();
+    /// @notice Target block for proof must be greater than latest block and less than the
+    /// latest block plus the maximum number of skipped blocks.
+    error TargetBlockNotInRange();
 
     /// @notice The range of blocks in a request is greater than the maximum allowed.
     error ProofBlockRangeTooLarge();

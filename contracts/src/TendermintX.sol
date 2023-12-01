@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IFunctionGateway} from "./interfaces/IFunctionGateway.sol";
+import {ISuccinctGateway} from "./interfaces/ISuccinctGateway.sol";
 import {ITendermintX} from "./interfaces/ITendermintX.sol";
 
 /// @notice The TendermintX contract is a light client for Tendermint.
 /// @dev The light client can not go out of sync for the trusting period (2 weeks).
 contract TendermintX is ITendermintX {
+    /// @notice The maximum number of blocks that can be skipped. This is typically the length of
+    /// trusting period. Below, this is set to 2 weeks, which is roughly 100800 blocks if the
+    /// block time is 12 seconds.
+    uint64 public constant SKIP_MAX = 100800;
+
     /// @notice The address of the gateway contract.
     address public gateway;
 
@@ -59,11 +64,13 @@ contract TendermintX is ITendermintX {
             revert LatestHeaderNotFound();
         }
 
-        if (_targetBlock <= latestBlock) {
-            revert TargetLessThanLatest();
+        if (
+            _targetBlock <= latestBlock || _targetBlock > latestBlock + SKIP_MAX
+        ) {
+            revert TargetBlockNotInRange();
         }
 
-        IFunctionGateway(gateway).requestCall{value: msg.value}(
+        ISuccinctGateway(gateway).requestCall{value: msg.value}(
             skipFunctionId,
             abi.encodePacked(latestBlock, latestHeader, _targetBlock),
             address(this),
@@ -87,6 +94,12 @@ contract TendermintX is ITendermintX {
             revert TrustedHeaderNotFound();
         }
 
+        if (
+            _targetBlock <= latestBlock || _targetBlock > latestBlock + SKIP_MAX
+        ) {
+            revert TargetBlockNotInRange();
+        }
+
         // Encode the circuit input.
         bytes memory input = abi.encodePacked(
             _trustedBlock,
@@ -95,17 +108,13 @@ contract TendermintX is ITendermintX {
         );
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
             skipFunctionId,
             input
         );
 
         // Read the target header from request result.
         bytes32 targetHeader = abi.decode(requestResult, (bytes32));
-
-        if (_targetBlock <= latestBlock) {
-            revert TargetLessThanLatest();
-        }
 
         blockHeightToHeaderHash[_targetBlock] = targetHeader;
         latestBlock = _targetBlock;
@@ -121,7 +130,7 @@ contract TendermintX is ITendermintX {
             revert LatestHeaderNotFound();
         }
 
-        IFunctionGateway(gateway).requestCall{value: msg.value}(
+        ISuccinctGateway(gateway).requestCall{value: msg.value}(
             stepFunctionId,
             abi.encodePacked(latestBlock, latestHeader),
             address(this),
@@ -139,21 +148,21 @@ contract TendermintX is ITendermintX {
             revert TrustedHeaderNotFound();
         }
 
+        uint64 nextBlock = _trustedBlock + 1;
+        if (nextBlock <= latestBlock) {
+            revert TargetBlockNotInRange();
+        }
+
         bytes memory input = abi.encodePacked(_trustedBlock, trustedHeader);
 
         // Call gateway to get the proof result.
-        bytes memory requestResult = IFunctionGateway(gateway).verifiedCall(
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
             stepFunctionId,
             input
         );
 
         // Read the new header from request result.
         bytes32 newHeader = abi.decode(requestResult, (bytes32));
-
-        uint64 nextBlock = _trustedBlock + 1;
-        if (nextBlock <= latestBlock) {
-            revert TargetLessThanLatest();
-        }
 
         blockHeightToHeaderHash[nextBlock] = newHeader;
         latestBlock = nextBlock;
