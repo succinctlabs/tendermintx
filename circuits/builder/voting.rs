@@ -36,14 +36,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let zero = self.zero();
         let mut total = self.zero();
 
-        let is_enabled = self._true();
+        let mut is_enabled = self._true();
         for i in 0..validator_voting_power.len() {
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
 
             // If at_end, then the rest of the leaves (including this one) are disabled.
             let at_end = self.is_equal(idx, nb_enabled_validators);
             let not_at_end = self.not(at_end);
-            let is_enabled = self.and(not_at_end, is_enabled);
+            is_enabled = self.and(not_at_end, is_enabled);
 
             // If enabled, add the voting power to the total.
             let val = self.select(is_enabled, validator_voting_power[i], zero);
