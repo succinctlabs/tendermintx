@@ -275,12 +275,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
 
         // Verify each validator's signature is valid.
+        let is_enabled = self._true();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-            let enabled = self.lt(idx, nb_enabled_validators);
+
+            // If at_end, then the rest of the leaves (including this one) are disabled.
+            let at_end = self.is_equal(idx, nb_enabled_validators);
+            let not_at_end = self.not(at_end);
+            let is_enabled = self.and(not_at_end, is_enabled);
 
             // If the validator is signed, assert it is enabled.
-            let enabled_and_signed = self.and(enabled, validators[i].signed);
+            let enabled_and_signed = self.and(is_enabled, validators[i].signed);
             self.assert_is_equal(validators[i].signed, enabled_and_signed);
 
             // Verify every signed validator's message includes the header hash.

@@ -35,12 +35,18 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
         let zero = self.zero();
         let mut total = self.zero();
+
+        let is_enabled = self._true();
         for i in 0..validator_voting_power.len() {
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
-            let enabled = self.lt(idx, nb_enabled_validators);
+
+            // If at_end, then the rest of the leaves (including this one) are disabled.
+            let at_end = self.is_equal(idx, nb_enabled_validators);
+            let not_at_end = self.not(at_end);
+            let is_enabled = self.and(not_at_end, is_enabled);
 
             // If enabled, add the voting power to the total.
-            let val = self.select(enabled, validator_voting_power[i], zero);
+            let val = self.select(is_enabled, validator_voting_power[i], zero);
             total = self.add(total, val)
         }
         total
