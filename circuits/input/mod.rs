@@ -305,15 +305,16 @@ impl InputDataFetcher {
             .get_validator_set_from_number(prev_block_number + 1)
             .await;
         let nb_validators = next_block_validators.len();
+        assert!(
+            nb_validators <= VALIDATOR_SET_SIZE_MAX,
+            "The validator set size of the next block is larger than the
+            VALIDATOR_SET_SIZE_MAX."
+        );
 
+        // Note: Extends the validator set with the absent validators.
         let next_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &next_block_validators,
             &next_block_signed_header,
-        );
-        assert_eq!(
-            next_block_validators.len(),
-            VALIDATOR_SET_SIZE_MAX,
-            "Validator set size needs to be the provided validator_set_size_max."
         );
 
         let next_block_validators_hash_proof = self.get_inclusion_proof(
@@ -364,13 +365,24 @@ impl InputDataFetcher {
         trusted_block_hash: H256,
         target_block_number: u64,
     ) -> SkipInputs<F> {
-        let trusted_signed_header = self
-            .get_signed_header_from_number(trusted_block_number)
-            .await;
         let trusted_block_validator_set = self
             .get_validator_set_from_number(trusted_block_number)
             .await;
         let nb_trusted_validators = trusted_block_validator_set.len();
+        let target_block_validator_set = self
+            .get_validator_set_from_number(target_block_number)
+            .await;
+        let nb_target_validators = target_block_validator_set.len();
+        assert!(
+            nb_trusted_validators <= VALIDATOR_SET_SIZE_MAX
+                && nb_target_validators <= VALIDATOR_SET_SIZE_MAX,
+            "The validator set size of the trusted or target block is larger than the 
+            VALIDATOR_SET_SIZE_MAX."
+        );
+
+        let trusted_signed_header = self
+            .get_signed_header_from_number(trusted_block_number)
+            .await;
         let computed_trusted_header_hash = trusted_signed_header.header.hash();
         assert_eq!(
             computed_trusted_header_hash.as_bytes(),
@@ -383,10 +395,7 @@ impl InputDataFetcher {
             .await;
         let target_block_header = target_signed_header.header.hash();
         let round_present = target_signed_header.commit.round.value() != 0;
-        let target_block_validator_set = self
-            .get_validator_set_from_number(target_block_number)
-            .await;
-        let nb_target_validators = target_block_validator_set.len();
+
         let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
             &target_signed_header,
