@@ -3049,7 +3049,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git#47e24306b7dc224383712a
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/simple-merkle-tree#84fa5a564cc9f258b8ebeb70ea43c74859ce7780"
+source = "git+https://github.com/succinctlabs/succinctx.git#38340176b4aea3d55a116762e2b1fd101c6a5ba5"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3091,7 +3091,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/simple-merkle-tree#84fa5a564cc9f258b8ebeb70ea43c74859ce7780"
+source = "git+https://github.com/succinctlabs/succinctx.git#38340176b4aea3d55a116762e2b1fd101c6a5ba5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4150,7 +4150,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git?branch=ratan/simple-merkle-tree#84fa5a564cc9f258b8ebeb70ea43c74859ce7780"
+source = "git+https://github.com/succinctlabs/succinctx.git#38340176b4aea3d55a116762e2b1fd101c6a5ba5"
 dependencies = [
  "alloy-primitives",
  "anyhow",
