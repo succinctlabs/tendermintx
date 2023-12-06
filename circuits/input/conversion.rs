@@ -226,14 +226,9 @@ pub fn update_present_on_trusted_header<F: RichField>(
                     shared_voting_power += target_block_validator.power();
                     // Set the present_on_trusted_header field to true
                     target_validators[target_idx].present_on_trusted_header = true;
-                    println!(
-                        "updated present_on_trusted_header for target validator: {}",
-                        target_idx
-                    );
                 }
             }
         }
-        println!("start block idx: {}", start_block_idx);
         start_block_idx += 1;
     }
 
