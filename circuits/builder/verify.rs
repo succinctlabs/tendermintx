@@ -1,10 +1,11 @@
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
+use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::U32Variable;
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
-    PlonkParameters, Variable,
+    Field, PlonkParameters, Variable,
 };
 
 use super::shared::TendermintHeader;
@@ -44,6 +45,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -54,6 +56,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
     ) -> TendermintHashVariable;
 
     /// Verify the validators from the target block marked present_on_trusted_header are present on
@@ -61,12 +64,14 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
+        trusted_nb_enabled_validators: Variable,
     );
 
     /// Assert the voting power of the included validators is greater than the threshold
@@ -74,6 +79,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_voting_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
         include_in_check: &[BoolVariable],
@@ -89,6 +95,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -106,6 +113,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -116,6 +124,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
             ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
+        trusted_nb_enabled_validators: Variable,
     );
 }
 
@@ -200,6 +209,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -240,14 +250,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
                 pubkey: v.pubkey.clone(),
                 voting_power: v.voting_power,
                 validator_byte_length: v.validator_byte_length,
-                enabled: v.enabled,
             })
             .collect();
-        let computed_validators_hash =
-            self.compute_validators_hash(&ArrayVariable::<
-                ValidatorHashFieldVariable,
-                VALIDATOR_SET_SIZE_MAX,
-            >::new(validator_hash_fields));
+        let computed_validators_hash = self.compute_validators_hash(
+            &ArrayVariable::<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>::new(
+                validator_hash_fields,
+            ),
+            nb_enabled_validators,
+        );
 
         // Assert the computed validator hash matches the expected validator hash.
         let extracted_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
@@ -258,15 +268,24 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let threshold_denominator = self.constant::<U64Variable>(3);
         self.verify_voting_threshold(
             validators.clone(),
+            nb_enabled_validators,
             &threshold_numerator,
             &threshold_denominator,
             &signed,
         );
 
         // Verify each validator's signature is valid.
+        let mut is_enabled = self._true();
         for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
+
+            // If at_end, then the rest of the leaves (including this one) are disabled.
+            let at_end = self.is_equal(idx, nb_enabled_validators);
+            let not_at_end = self.not(at_end);
+            is_enabled = self.and(not_at_end, is_enabled);
+
             // If the validator is signed, assert it is enabled.
-            let enabled_and_signed = self.and(validators[i].enabled, validators[i].signed);
+            let enabled_and_signed = self.and(is_enabled, validators[i].signed);
             self.assert_is_equal(validators[i].signed, enabled_and_signed);
 
             // Verify every signed validator's message includes the header hash.
@@ -286,6 +305,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
     ) -> TendermintHashVariable {
         // Extract the necessary fields.
         let byte_lengths: Vec<Variable> = validators
@@ -298,26 +318,26 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             .iter()
             .map(|v| self.marshal_tendermint_validator(&v.pubkey, &v.voting_power))
             .collect();
-        let validators_enabled: Vec<BoolVariable> =
-            validators.as_vec().iter().map(|v| v.enabled).collect();
 
         // Compute the validators hash of the validator set.
         self.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &marshalled_validators,
             &byte_lengths,
-            validators_enabled,
+            nb_enabled_validators,
         )
     }
 
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
             ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
+        trusted_nb_enabled_validators: Variable,
     ) {
         let false_t = self._false();
         let true_t = self._true();
@@ -333,7 +353,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(header_from_validator_root_proof, trusted_header);
 
         // Compute the validators hash of the trusted block from the necessary fields.
-        let computed_val_hash = self.compute_validators_hash(trusted_validator_hash_fields);
+        let computed_val_hash = self
+            .compute_validators_hash(trusted_validator_hash_fields, trusted_nb_enabled_validators);
 
         // Extract the expected validators hash of the trusted header from the valid validators hash proof.
         let expected_val_hash = trusted_validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
@@ -383,6 +404,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let threshold_denominator = self.constant::<U64Variable>(3);
         self.verify_voting_threshold(
             validators.clone(),
+            nb_enabled_validators,
             &threshold_numerator,
             &threshold_denominator,
             &present_on_trusted_header,
@@ -392,6 +414,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_voting_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
         include_in_check: &[BoolVariable],
@@ -402,8 +425,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators.as_vec().iter().map(|v| v.voting_power).collect();
 
         // Compute the total voting power of the entire validator set.
-        let total_voting_power =
-            self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(&validator_voting_power);
+        let total_voting_power = self.get_total_voting_power::<VALIDATOR_SET_SIZE_MAX>(
+            &validator_voting_power,
+            nb_enabled_validators,
+        );
 
         // Compute whether the voting power of the included validators is greater than the threshold.
         let gte_threshold = self.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
@@ -422,6 +447,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -430,7 +456,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         round_present: &BoolVariable,
     ) {
         // Verify the new Tendermint consensus block.
-        self.verify_header(validators, header, validator_hash_proof, round_present);
+        self.verify_header(
+            validators,
+            nb_enabled_validators,
+            header,
+            validator_hash_proof,
+            round_present,
+        );
 
         // Verify the previous header hash in the new header matches the previous header.
         self.verify_prev_header_in_header(header, *prev_header, last_block_id_proof);
@@ -448,6 +480,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -458,19 +491,28 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             ValidatorHashFieldVariable,
             VALIDATOR_SET_SIZE_MAX,
         >,
+        trusted_nb_enabled_validators: Variable,
     ) {
         // Verify the validators from the target block marked present_on_trusted_header
         // are present on the trusted header, and comprise at least 1/3 of the total voting power
         // on the target block.
         self.verify_trusted_validators(
             validators,
+            nb_enabled_validators,
             trusted_header,
             trusted_validator_hash_proof,
             trusted_validator_hash_fields,
+            trusted_nb_enabled_validators,
         );
 
         // Verify the target Tendermint consensus block.
-        self.verify_header(validators, header, validator_hash_proof, round_present);
+        self.verify_header(
+            validators,
+            nb_enabled_validators,
+            header,
+            validator_hash_proof,
+            round_present,
+        );
 
         // Verify the target block's height is correct.
         self.verify_block_height(

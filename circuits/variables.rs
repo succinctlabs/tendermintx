@@ -64,7 +64,6 @@ pub struct ValidatorVariable {
     pub message_byte_length: Variable,
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
     pub signed: BoolVariable,
     // Only used in skip circuit.
     pub present_on_trusted_header: BoolVariable,
@@ -79,5 +78,4 @@ pub struct ValidatorHashFieldVariable {
     pub pubkey: CompressedEdwardsYVariable,
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
-    pub enabled: BoolVariable,
 }

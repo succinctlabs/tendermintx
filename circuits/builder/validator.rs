@@ -1,9 +1,9 @@
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
+use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::U32Variable;
+use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, U32Variable};
 use plonky2x::prelude::{
-    BoolVariable, ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters,
-    Variable,
+    ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters, Variable,
 };
 
 use super::shared::TendermintHeader;
@@ -36,7 +36,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         validators: &[MarshalledValidatorVariable],
         validator_byte_lengths: &[Variable],
-        validator_enabled: Vec<BoolVariable>,
+        nb_enabled_validators: Variable,
     ) -> TendermintHashVariable;
 }
 
@@ -91,11 +91,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         &mut self,
         validators: &[MarshalledValidatorVariable],
         validator_byte_lengths: &[Variable],
-        validator_enabled: Vec<BoolVariable>,
+        nb_enabled_validators: Variable,
     ) -> TendermintHashVariable {
         assert_eq!(validators.len(), VALIDATOR_SET_SIZE_MAX);
         assert_eq!(validator_byte_lengths.len(), VALIDATOR_SET_SIZE_MAX);
-        assert_eq!(validator_enabled.len(), VALIDATOR_SET_SIZE_MAX);
 
         // Hash each of the validators to get corresponding leaf hash.
         let mut validator_leaf_hashes = Vec::new();
@@ -105,9 +104,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         }
 
         // Return the root hash.
-        self.get_root_from_hashed_leaves::<VALIDATOR_SET_SIZE_MAX>(
-            validator_leaf_hashes,
-            validator_enabled,
+        self.get_root_from_hashed_leaves(
+            ArrayVariable::<Bytes32Variable, VALIDATOR_SET_SIZE_MAX>::new(validator_leaf_hashes),
+            nb_enabled_validators,
         )
     }
 }
@@ -121,6 +120,7 @@ pub(crate) mod tests {
     use itertools::Itertools;
     use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
+    use plonky2x::frontend::vars::BoolVariable;
     use plonky2x::prelude::{
         ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
     };
@@ -133,6 +133,8 @@ pub(crate) mod tests {
     use crate::input::tendermint_utils::{generate_proofs_from_header, proofs_from_byte_slices};
     use crate::input::utils::{convert_to_h256, get_path_indices};
     use crate::input::InputDataFetcher;
+
+    type F = GoldilocksField;
 
     #[test]
     fn test_marshal_tendermint_validator() {
@@ -180,12 +182,12 @@ pub(crate) mod tests {
         let messages =
             builder.read::<ArrayVariable<MarshalledValidatorVariable, VALIDATOR_SET_SIZE_MAX>>();
         let val_byte_lengths = builder.read::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>();
-        let val_enabled = builder.read::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>();
+        let nb_enabled_val = builder.read::<Variable>();
 
         let root = builder.hash_validator_set::<VALIDATOR_SET_SIZE_MAX>(
             &messages.as_vec(),
             &val_byte_lengths.as_vec(),
-            val_enabled.as_vec(),
+            nb_enabled_val,
         );
         builder.write(root);
         let circuit = builder.build();
@@ -213,7 +215,7 @@ pub(crate) mod tests {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        let validators_enabled = vec![vec![true, true, true, true], vec![true, true, true, true]];
+        let nb_enabled_validators = [F::from_canonical_usize(4), F::from_canonical_usize(4)];
 
         // Compute the expected hash_validator_set roots.
         let expected_roots: Vec<H256> = validators
@@ -237,9 +239,7 @@ pub(crate) mod tests {
         input.write::<ArrayVariable<Variable, VALIDATOR_SET_SIZE_MAX>>(
             validators_byte_lengths[0].clone(),
         );
-        input.write::<ArrayVariable<BoolVariable, VALIDATOR_SET_SIZE_MAX>>(
-            validators_enabled[0].clone(),
-        );
+        input.write::<Variable>(nb_enabled_validators[0]);
         let (_, mut output) = circuit.prove(&input);
         let computed_root = output.read::<Bytes32Variable>();
         assert_eq!(expected_roots[0], computed_root);

@@ -92,7 +92,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
                 message_byte_length: F::from_canonical_usize(msg_length),
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-                enabled: true,
                 signed: true,
                 present_on_trusted_header: false,
             });
@@ -110,7 +109,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
                 message_byte_length: F::from_canonical_usize(32),
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-                enabled: true,
                 signed: false,
                 present_on_trusted_header: false,
             });
@@ -132,7 +130,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
             message_byte_length: F::from_canonical_usize(32),
             voting_power: 0u64,
             validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
-            enabled: false,
             signed: false,
             present_on_trusted_header: false, // This field ignored for this case
         });
@@ -163,7 +160,6 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
             pubkey,
             voting_power: validator.power(),
             validator_byte_length: F::from_canonical_usize(val_bytes.len()),
-            enabled: true,
         });
     }
 
@@ -177,7 +173,6 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
             pubkey,
             voting_power: 0u64,
             validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
-            enabled: false,
         });
     }
 

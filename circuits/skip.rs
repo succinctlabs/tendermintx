@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ValueStream, VariableStream};
+use plonky2x::frontend::vars::{ValueStream, Variable, VariableStream};
 use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, PlonkParameters,
+    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, Field, PlonkParameters,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +38,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         );
         let target_block_validators =
             output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+        let nb_validators = output_stream.read::<Variable>(self);
         let target_header = output_stream.read::<Bytes32Variable>(self);
         let round_present = output_stream.read::<BoolVariable>(self);
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
@@ -48,9 +49,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             output_stream.read::<HashInclusionProofVariable>(self);
         let trusted_header_validators_hash_fields = output_stream
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
+        let trusted_nb_validators = output_stream.read::<Variable>(self);
 
         self.verify_skip(
             &target_block_validators,
+            nb_validators,
             &target_header,
             &target_header_block_height_proof,
             &target_header_validators_hash_proof,
@@ -58,6 +61,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             trusted_header,
             &trusted_header_validators_hash_proof,
             &trusted_header_validators_hash_fields,
+            trusted_nb_validators,
         );
         target_header
     }
@@ -87,18 +91,25 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             )
             .await;
 
+        output_stream.write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(
+            result.target_block_validators,
+        );
         output_stream
-            .write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(result.0); // target_block_validators
-        output_stream.write_value::<Bytes32Variable>(result.1.into()); // target_header
-        output_stream.write_value::<BoolVariable>(result.2); // round_present
-        output_stream.write_value::<HeightProofVariable>(result.3); // block_height_proof
-        output_stream.write_value::<HashInclusionProofVariable>(result.4); // validators_hash_proof
-        output_stream.write_value::<Bytes32Variable>(result.5.into()); // trusted_header
-        output_stream.write_value::<HashInclusionProofVariable>(result.6); // trusted_header_validators_hash_proof
+            .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_target_validators));
+        output_stream.write_value::<Bytes32Variable>(result.target_header.into());
+        output_stream.write_value::<BoolVariable>(result.round_present);
+        output_stream.write_value::<HeightProofVariable>(result.target_block_height_proof);
+        output_stream
+            .write_value::<HashInclusionProofVariable>(result.target_block_validators_hash_proof);
+        output_stream.write_value::<Bytes32Variable>(result.trusted_header.into());
+        output_stream
+            .write_value::<HashInclusionProofVariable>(result.trusted_block_validators_hash_proof);
         output_stream
             .write_value::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(
-                result.7,
-            ); // trusted_header_validators_hash_fields
+                result.trusted_block_validators_hash_fields,
+            );
+        output_stream
+            .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_trusted_validators));
     }
 }
 

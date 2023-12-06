@@ -3,13 +3,15 @@
 //! When summing the voting power of all validators, the total voting power will not overflow a u64.
 //! When multiplying the total voting power by a small factor c < 16, the result will not overflow a u64.
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::prelude::{BoolVariable, CircuitBuilder, PlonkParameters};
+use plonky2x::frontend::vars::Variable;
+use plonky2x::prelude::{BoolVariable, CircuitBuilder, Field, PlonkParameters};
 
 pub trait TendermintVoting {
     // Sums the voting power of all validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
+        nb_enabled_validators: Variable,
     ) -> U64Variable;
 
     /// Assert the enabled voting power > threshold * total voting power.
@@ -24,22 +26,37 @@ pub trait TendermintVoting {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<L, D> {
+    // Computes the total voting power from the first nb_enabled_validators.
     fn get_total_voting_power<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
+        nb_enabled_validators: Variable,
     ) -> U64Variable {
         // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
-        let mut total = self.constant::<U64Variable>(0);
+        let zero = self.zero();
+        let mut total = self.zero();
+
+        let mut is_enabled = self._true();
         for i in 0..validator_voting_power.len() {
-            total = self.add(total, validator_voting_power[i])
+            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
+
+            // If at_end, then the rest of the leaves (including this one) are disabled.
+            let at_end = self.is_equal(idx, nb_enabled_validators);
+            let not_at_end = self.not(at_end);
+            is_enabled = self.and(not_at_end, is_enabled);
+
+            // If enabled, add the voting power to the total.
+            let val = self.select(is_enabled, validator_voting_power[i], zero);
+            total = self.add(total, val)
         }
         total
     }
 
+    // in_group specifies which validators to accumulate the voting power from.
     fn is_voting_power_greater_than_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
-        validator_enabled: &[BoolVariable],
+        in_group: &[BoolVariable],
         total_voting_power: &U64Variable,
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
@@ -49,8 +66,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let mut accumulated_voting_power = self.constant::<U64Variable>(0);
         // Accumulate the voting power from the enabled validators.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let select_voting_power =
-                self.select(validator_enabled[i], validator_voting_power[i], zero);
+            let select_voting_power = self.select(in_group[i], validator_voting_power[i], zero);
             accumulated_voting_power = self.add(accumulated_voting_power, select_voting_power);
         }
 
