@@ -26,6 +26,13 @@ There are currently TendermintX light clients tracking the following networks on
 - [Osmosis](https://goerli.etherscan.io/address/0xd4a723C4dd8a961ACcbC5a42f05862C63B32B701#events)
 - [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2#events)
 
+## Benchmarks
+| Chain | # of Validators    | plonky2 Proving Time    | End to End Proving Time |
+| :---:   | :---: | :---: | :---: |
+| dYdX | 60   | 2 mins   | 5 mins |
+| Celestia | 100 | 5 mins | 8 mins |
+| Osmosis | 150 | 9 mins | 12 mins |
+
 ## Integrate TendermintX
 1. Request a Succinct Platform API Key: https://alpha.succinct.xyz/partner
 
