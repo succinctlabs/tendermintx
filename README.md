@@ -1,4 +1,7 @@
 # Tendermint X
+
+![Tendermint X](https://pbs.twimg.com/media/GBqB__WbsAAjjTF?format=jpg&name=4096x4096)
+
 Implementation of zero-knowledge proof circuits for [Tendermint](https://tendermint.com/).
 
 ## Overview
