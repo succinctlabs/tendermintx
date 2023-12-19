@@ -57,7 +57,7 @@ There are currently Tendermint X light clients tracking the following networks o
 
 10. Open the code for your fork of `TendermintX` again.
 
-11. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+11. Update `contracts/.env` according to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
 
 12. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
 ```
