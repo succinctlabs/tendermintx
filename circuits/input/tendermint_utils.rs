@@ -212,7 +212,7 @@ impl ProofNode {
     }
 }
 
-pub fn compute_hash_from_proof(enc_leaf: &[u8], path: &Vec<bool>, aunts: &[Hash]) -> Option<Hash> {
+pub fn compute_hash_from_proof(enc_leaf: &[u8], path: &[bool], aunts: &[Hash]) -> Option<Hash> {
     let mut hash_so_far = leaf_hash::<Sha256>(enc_leaf);
     for i in 0..path.len() {
         hash_so_far = if path[i] {

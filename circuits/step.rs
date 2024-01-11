@@ -38,6 +38,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let next_block_validators =
             output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let nb_validators = output_stream.read::<Variable>(self);
+        let next_block_chain_id_proof = output_stream.read::<ChainIdProofVariable>(self);
         let next_block_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
         let next_block_last_block_id_proof =
@@ -50,6 +51,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
             nb_validators,
             &next_header,
             &prev_header_hash,
+            &next_block_chain_id_proof,
             &next_block_validators_hash_proof,
             &prev_block_next_validators_hash_proof,
             &next_block_last_block_id_proof,

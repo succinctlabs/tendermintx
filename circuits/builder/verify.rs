@@ -2,7 +2,7 @@ use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::U32Variable;
+use plonky2x::frontend::vars::{ByteVariable, U32Variable};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
     Field, PlonkParameters, Variable,
@@ -11,7 +11,10 @@ use plonky2x::prelude::{
 use super::shared::TendermintHeader;
 use super::validator::TendermintValidator;
 use super::voting::TendermintVoting;
-use crate::consts::{HASH_SIZE, HEADER_PROOF_DEPTH, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
+use crate::consts::{
+    CHAIN_ID_BYTES, CHAIN_ID_SIZE_BYTES, HASH_SIZE, HEADER_PROOF_DEPTH,
+    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+};
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
@@ -40,6 +43,13 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
     );
 
+    /// Verify the chain ID against the header.
+    fn verify_chain_id(
+        &mut self,
+        chain_id_proof: &ChainIdProofVariable,
+        header: &TendermintHashVariable,
+    );
+
     /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
     /// header's validators set signed on a message that includes the header hash.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -47,6 +57,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
     );
@@ -98,6 +109,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable,
@@ -115,6 +127,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -165,10 +178,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
 
         // Assert the last block id came from this header.
-        let header_from_last_block_id_proof = self.get_root_from_merkle_proof(
-            last_block_id_proof,
-            &last_block_id_path.try_into().unwrap(),
-        );
+        let header_from_last_block_id_proof =
+            self.get_root_from_merkle_proof(last_block_id_proof, &last_block_id_path.into());
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Assert the previous header from the last block id proof matches the previous header.
@@ -206,11 +217,45 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
     }
 
+    fn verify_chain_id(
+        &mut self,
+        chain_id_proof: &ChainIdProofVariable,
+        header: &TendermintHashVariable,
+    ) {
+        let false_t = self._false();
+        let true_t = self._true();
+
+        // Assert the extracted chain ID is from the header.
+        let chain_id_path = vec![true_t, false_t, false_t, false_t];
+        // Hash the encoded chain id.
+        let leaf_hash = self.curta_sha256_variable(
+            &chain_id_proof.chain_id.data,
+            chain_id_proof.enc_chain_id_byte_length,
+        );
+        // Verify the computed header from the chain id proof against the header.
+        let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
+            &chain_id_proof.proof,
+            &chain_id_path.into(),
+            leaf_hash,
+        );
+        self.assert_is_equal(computed_header, *header);
+        // Extract the chain ID bytes from the chain ID proof.
+        let extracted_chain_id: ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES> = chain_id_proof
+            .chain_id[2..2 + CHAIN_ID_BYTES.len()]
+            .to_vec()
+            .into();
+        let expected_chain_id = self
+            .constant::<ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES>>(CHAIN_ID_BYTES.to_vec());
+        // Assert the computed chain ID matches the expected chain ID.
+        self.assert_is_equal(extracted_chain_id, expected_chain_id);
+    }
+
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
     ) {
@@ -297,9 +342,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Assert the validators hash came from this header.
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let header_from_validator_root_proof = self
-            .get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.try_into().unwrap());
+        let header_from_validator_root_proof =
+            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.into());
         self.assert_is_equal(*header, header_from_validator_root_proof);
+
+        // Verify the chain ID against the header.
+        self.verify_chain_id(chain_id_proof, header);
     }
 
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -344,10 +392,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Get the header from the validator hash merkle proof
         let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let header_from_validator_root_proof = self.get_root_from_merkle_proof(
-            trusted_validator_hash_proof,
-            &val_hash_path.try_into().unwrap(),
-        );
+        let header_from_validator_root_proof =
+            self.get_root_from_merkle_proof(trusted_validator_hash_proof, &val_hash_path.into());
 
         // Assert the validator hash proof matches the trusted header
         self.assert_is_equal(header_from_validator_root_proof, trusted_header);
@@ -450,6 +496,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
         prev_header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable,
@@ -460,6 +507,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             header,
+            chain_id_proof,
             validator_hash_proof,
             round_present,
         );
@@ -482,6 +530,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        chain_id_proof: &ChainIdProofVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -510,6 +559,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             header,
+            chain_id_proof,
             validator_hash_proof,
             round_present,
         );
@@ -528,12 +578,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use ethers::types::H256;
     use plonky2x::prelude::DefaultBuilder;
     use subtle_encoding::hex;
+    use tendermint_proto::Protobuf;
 
     use super::*;
     use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
+    use crate::input::{InputDataFetcher, InputDataMode};
 
     #[test]
     fn test_verify_hash_in_message() {
@@ -569,5 +623,32 @@ pub(crate) mod tests {
         let (_, mut output) = circuit.prove(&input);
         let verified = output.read::<BoolVariable>();
         assert!(verified);
+    }
+
+    #[tokio::test]
+    async fn test_verify_chain_id() {
+        // This is a test case generated from block 500000 of Celestia mainnet
+
+        env_logger::try_init().unwrap_or_default();
+        dotenv::dotenv().ok();
+
+        let block_number: u64 = 500000;
+
+        let tendermint_rpc_url =
+            env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
+        let mut data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
+        data_fetcher.mode = InputDataMode::Rpc;
+
+        let signed_header = data_fetcher
+            .get_signed_header_from_number(block_number)
+            .await;
+
+        let encoded_chain_id_bytes = signed_header.header.chain_id.encode_vec();
+        // let encoded_chain_id = hex::encode(encoded_chain_id_bytes);
+        println!("Chain ID: {:?}", encoded_chain_id_bytes);
+
+        let chain_id = "celestia";
+        // let expected_encoded_chain_id = hex::encode(chain_id.as_bytes());
+        println!("Expected Chain ID: {:?}", chain_id.as_bytes());
     }
 }

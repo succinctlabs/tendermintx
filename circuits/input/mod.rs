@@ -22,8 +22,9 @@ use self::tendermint_utils::{
 };
 use self::utils::convert_to_h256;
 use crate::consts::{
-    BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
-    PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
+    BLOCK_HEIGHT_INDEX, CHAIN_ID_INDEX, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX,
+    NEXT_VALIDATORS_HASH_INDEX, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_CHAIN_ID_SIZE_BYTES,
+    PROTOBUF_HASH_SIZE_BYTES, VALIDATORS_HASH_INDEX,
 };
 use crate::input::conversion::{get_validator_data_from_block, validator_hash_field_from_block};
 use crate::variables::*;
@@ -47,6 +48,7 @@ pub struct StepInputs<F: RichField> {
     pub round_present: bool,
     pub next_block_validators: Vec<ValidatorType<F>>,
     pub nb_validators: usize,
+    pub next_block_chain_id_proof: ChainIdProofValueType<F>,
     pub next_block_validators_hash_proof:
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     pub next_block_last_block_id_proof:
@@ -60,6 +62,7 @@ pub struct SkipInputs<F: RichField> {
     pub nb_target_validators: usize,                    // nb_validators
     pub target_header: [u8; 32],                        // target_header
     pub round_present: bool,                            // round_present
+    pub target_block_chain_id_proof: ChainIdProofValueType<F>, // target_chain_id_proof,
     pub target_block_height_proof: HeightProofValueType<F>, // target_block_height_proof,
     pub target_block_validators_hash_proof:
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>, // target_header_validators_hash_proof,
@@ -317,6 +320,25 @@ impl InputDataFetcher {
             &next_block_signed_header,
         );
 
+        let encoded_chain_id = next_block_signed_header
+            .header
+            .chain_id
+            .clone()
+            .encode_vec();
+        let next_block_chain_id_proof = self.get_merkle_proof(
+            &next_block_signed_header.header,
+            CHAIN_ID_INDEX as u64,
+            encoded_chain_id.clone(),
+        );
+        // Extend the chain id to the maximum encoded length.
+        let mut extended_chain_id = encoded_chain_id.clone();
+        extended_chain_id.resize(PROTOBUF_CHAIN_ID_SIZE_BYTES, 0u8);
+        let next_block_chain_id_proof = ChainIdProofValueType::<F> {
+            chain_id: extended_chain_id,
+            enc_chain_id_byte_length: encoded_chain_id.len() as u32,
+            proof: next_block_chain_id_proof.1,
+        };
+
         let next_block_validators_hash_proof = self.get_inclusion_proof(
             &next_block_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -353,6 +375,7 @@ impl InputDataFetcher {
             round_present,
             next_block_validators,
             nb_validators,
+            next_block_chain_id_proof,
             next_block_validators_hash_proof,
             next_block_last_block_id_proof,
             prev_block_next_validators_hash_proof,
@@ -407,12 +430,26 @@ impl InputDataFetcher {
             &trusted_block_validator_set,
         );
 
+        let encoded_chain_id = target_signed_header.header.chain_id.clone().encode_vec();
+        let target_block_chain_id_proof = self.get_merkle_proof(
+            &target_signed_header.header,
+            CHAIN_ID_INDEX as u64,
+            encoded_chain_id.clone(),
+        );
+        // Extend the chain id to the maximum encoded length.
+        let mut extended_chain_id = encoded_chain_id.clone();
+        extended_chain_id.resize(PROTOBUF_CHAIN_ID_SIZE_BYTES, 0u8);
+        let target_block_chain_id_proof = ChainIdProofValueType::<F> {
+            chain_id: extended_chain_id,
+            enc_chain_id_byte_length: encoded_chain_id.len() as u32,
+            proof: target_block_chain_id_proof.1,
+        };
+
         let target_block_height_proof = self.get_merkle_proof(
             &target_signed_header.header,
             BLOCK_HEIGHT_INDEX as u64,
             target_signed_header.header.height.encode_vec(),
         );
-
         let target_block_height_proof = HeightProofValueType::<F> {
             height: target_signed_header.header.height.value(),
             enc_height_byte_length: target_signed_header.header.height.encode_vec().len() as u32,
@@ -441,6 +478,7 @@ impl InputDataFetcher {
             nb_target_validators,
             target_header: target_block_header.as_bytes().try_into().unwrap(),
             round_present,
+            target_block_chain_id_proof,
             target_block_height_proof,
             target_block_validators_hash_proof,
             trusted_header: trusted_block_hash.as_bytes().try_into().unwrap(),

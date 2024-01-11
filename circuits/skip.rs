@@ -41,6 +41,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         let nb_validators = output_stream.read::<Variable>(self);
         let target_header = output_stream.read::<Bytes32Variable>(self);
         let round_present = output_stream.read::<BoolVariable>(self);
+        let target_header_chain_id_proof = output_stream.read::<ChainIdProofVariable>(self);
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
         let target_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
@@ -55,6 +56,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             &target_block_validators,
             nb_validators,
             &target_header,
+            &target_header_chain_id_proof,
             &target_header_block_height_proof,
             &target_header_validators_hash_proof,
             &round_present,
@@ -98,6 +100,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_target_validators));
         output_stream.write_value::<Bytes32Variable>(result.target_header.into());
         output_stream.write_value::<BoolVariable>(result.round_present);
+        output_stream.write_value::<ChainIdProofVariable>(result.target_block_chain_id_proof);
         output_stream.write_value::<HeightProofVariable>(result.target_block_height_proof);
         output_stream
             .write_value::<HashInclusionProofVariable>(result.target_block_validators_hash_proof);
