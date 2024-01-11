@@ -624,31 +624,4 @@ pub(crate) mod tests {
         let verified = output.read::<BoolVariable>();
         assert!(verified);
     }
-
-    #[tokio::test]
-    async fn test_verify_chain_id() {
-        // This is a test case generated from block 500000 of Celestia mainnet
-
-        env_logger::try_init().unwrap_or_default();
-        dotenv::dotenv().ok();
-
-        let block_number: u64 = 500000;
-
-        let tendermint_rpc_url =
-            env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
-        let mut data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
-        data_fetcher.mode = InputDataMode::Rpc;
-
-        let signed_header = data_fetcher
-            .get_signed_header_from_number(block_number)
-            .await;
-
-        let encoded_chain_id_bytes = signed_header.header.chain_id.encode_vec();
-        // let encoded_chain_id = hex::encode(encoded_chain_id_bytes);
-        println!("Chain ID: {:?}", encoded_chain_id_bytes);
-
-        let chain_id = "celestia";
-        // let expected_encoded_chain_id = hex::encode(chain_id.as_bytes());
-        println!("Expected Chain ID: {:?}", chain_id.as_bytes());
-    }
 }
