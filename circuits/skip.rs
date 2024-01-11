@@ -173,16 +173,7 @@ mod tests {
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
 
     use super::*;
-
-    const CHAIN_ID_BYTES: &[u8] = b"mocha-4";
-    const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
-
-    // Mocha-4 is Celestia's testnet chain ID.
-    #[derive(Debug, Clone, PartialEq)]
-    pub struct Mocha4Config;
-    impl TendermintConfig<CHAIN_ID_SIZE_BYTES> for Mocha4Config {
-        const CHAIN_ID_BYTES: &'static [u8] = CHAIN_ID_BYTES;
-    }
+    use crate::config::{Mocha4Config, MOCHA_4_CHAIN_ID_SIZE_BYTES};
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -196,7 +187,7 @@ mod tests {
 
         log::debug!("Defining circuit");
 
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
             &mut builder,
         );
 
@@ -205,10 +196,10 @@ mod tests {
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_generators(
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_generators(
             &mut hint_registry,
         );
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_gates(
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_gates(
             &mut gate_registry,
         );
 
@@ -232,7 +223,7 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
             &mut builder,
         );
 
@@ -257,7 +248,7 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
             &mut builder,
         );
 

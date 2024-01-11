@@ -6,11 +6,20 @@ pub trait TendermintConfig<const CHAIN_ID_SIZE_BYTES: usize>:
     const CHAIN_ID_BYTES: &'static [u8];
 }
 
-/// The chain ID of the Tendermint chain.
-pub const CHAIN_ID_BYTES: &[u8] = b"mocha-4";
-pub const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
+/// Celestia's chain config.
+pub const CELESTIA_CHAIN_ID_BYTES: &[u8] = b"celestia";
+pub const CELESTIA_CHAIN_ID_SIZE_BYTES: usize = CELESTIA_CHAIN_ID_BYTES.len();
 #[derive(Debug, Clone, PartialEq)]
 pub struct CelestiaConfig;
-impl TendermintConfig<CHAIN_ID_SIZE_BYTES> for CelestiaConfig {
-    const CHAIN_ID_BYTES: &'static [u8] = CHAIN_ID_BYTES;
+impl TendermintConfig<CELESTIA_CHAIN_ID_SIZE_BYTES> for CelestiaConfig {
+    const CHAIN_ID_BYTES: &'static [u8] = CELESTIA_CHAIN_ID_BYTES;
+}
+
+/// Mocha-4's chain config.
+pub const MOCHA_4_CHAIN_ID_BYTES: &[u8] = b"mocha-4";
+pub const MOCHA_4_CHAIN_ID_SIZE_BYTES: usize = MOCHA_4_CHAIN_ID_BYTES.len();
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mocha4Config;
+impl TendermintConfig<MOCHA_4_CHAIN_ID_SIZE_BYTES> for Mocha4Config {
+    const CHAIN_ID_BYTES: &'static [u8] = MOCHA_4_CHAIN_ID_BYTES;
 }

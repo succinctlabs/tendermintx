@@ -43,7 +43,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// Verify the chain ID against the header.
     fn verify_chain_id<const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         chain_id_proof: &ChainIdProofVariable,
         header: &TendermintHashVariable,
     );
@@ -52,7 +52,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// header's validators set signed on a message that includes the header hash.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -104,7 +104,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// found, which is extremely rare.
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -124,7 +124,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     /// new block is less than the unbonding period. This is checked in the smart contract.
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -220,7 +220,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_chain_id<const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         chain_id_proof: &ChainIdProofVariable,
         header: &TendermintHashVariable,
     ) {
@@ -229,9 +229,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Assert the extracted chain ID is from the header.
         let chain_id_path = vec![true_t, false_t, false_t, false_t];
+
+        let mut extended_chain_id_bytes = chain_id_proof.chain_id.data.clone();
+        // Resize the chain id bytes to 64 bytes (1 chunk).
+        extended_chain_id_bytes.resize(64, self.zero::<ByteVariable>());
+
         // Hash the encoded chain id.
         let leaf_hash = self.curta_sha256_variable(
-            &chain_id_proof.chain_id.data,
+            &extended_chain_id_bytes,
             chain_id_proof.enc_chain_id_byte_length,
         );
         // Verify the computed header from the chain id proof against the header.
@@ -248,7 +253,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
                 .into();
         let expected_chain_id = self
             .constant::<ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }>>(
-                chain_id_bytes.to_vec(),
+                expected_chain_id_bytes.to_vec(),
             );
         // Assert the computed chain ID matches the expected chain ID.
         self.assert_is_equal(extracted_chain_id, expected_chain_id);
@@ -256,7 +261,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -352,7 +357,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(*header, header_from_validator_root_proof);
 
         // Verify the chain ID against the header.
-        self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(chain_id_bytes, chain_id_proof, header);
+        self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(
+            expected_chain_id_bytes,
+            chain_id_proof,
+            header,
+        );
     }
 
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -497,7 +506,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -510,7 +519,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     ) {
         // Verify the new Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
-            chain_id_bytes,
+            expected_chain_id_bytes,
             validators,
             nb_enabled_validators,
             header,
@@ -534,7 +543,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
-        chain_id_bytes: &[u8],
+        expected_chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -564,7 +573,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Verify the target Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
-            chain_id_bytes,
+            expected_chain_id_bytes,
             validators,
             nb_enabled_validators,
             header,

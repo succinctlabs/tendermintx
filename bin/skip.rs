@@ -16,19 +16,11 @@
 //!
 //!
 use plonky2x::backend::function::Plonky2xFunction;
-use tendermintx::config::TendermintConfig;
+use tendermintx::config::{CelestiaConfig, CELESTIA_CHAIN_ID_SIZE_BYTES};
 use tendermintx::consts::VALIDATOR_SET_SIZE_MAX;
 use tendermintx::skip::SkipCircuit;
 
-/// The chain ID of the Tendermint chain.
-pub const CHAIN_ID_BYTES: &[u8] = b"celestia";
-pub const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
-#[derive(Debug, Clone, PartialEq)]
-pub struct CelestiaConfig;
-impl TendermintConfig<CHAIN_ID_SIZE_BYTES> for CelestiaConfig {
-    const CHAIN_ID_BYTES: &'static [u8] = CHAIN_ID_BYTES;
-}
-
 fn main() {
-    SkipCircuit::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES, CelestiaConfig>::entrypoint();
+    SkipCircuit::<VALIDATOR_SET_SIZE_MAX, CELESTIA_CHAIN_ID_SIZE_BYTES, CelestiaConfig>::entrypoint(
+    );
 }
