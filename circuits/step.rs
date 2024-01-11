@@ -95,6 +95,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             result.next_block_validators,
         );
         output_stream.write_value::<Variable>(L::Field::from_canonical_usize(result.nb_validators));
+        output_stream.write_value::<ChainIdProofVariable>(result.next_block_chain_id_proof);
         output_stream
             .write_value::<HashInclusionProofVariable>(result.next_block_validators_hash_proof);
         output_stream
