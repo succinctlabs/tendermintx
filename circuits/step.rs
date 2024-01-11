@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
@@ -9,20 +11,23 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
+use crate::config::TendermintConfig;
 use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 pub trait TendermintStepCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         prev_block_number: U64Variable,
         prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for CircuitBuilder<L, D> {
-    fn step<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn step<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         prev_block_number: U64Variable,
         prev_header_hash: Bytes32Variable,
     ) -> Bytes32Variable {
@@ -46,7 +51,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let prev_block_next_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
 
-        self.verify_step(
+        self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            chain_id_bytes,
             &next_block_validators,
             nb_validators,
             &next_header,
@@ -100,17 +106,29 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 }
 
 #[derive(Debug, Clone)]
-pub struct StepCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    _config: usize,
+pub struct StepCircuit<
+    const MAX_VALIDATOR_SET_SIZE: usize,
+    const CHAIN_ID_SIZE_BYTES: usize,
+    C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+> {
+    _config: PhantomData<C>,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<
+        const MAX_VALIDATOR_SET_SIZE: usize,
+        const CHAIN_ID_SIZE_BYTES: usize,
+        C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+    > Circuit for StepCircuit<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, C>
+{
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let prev_block_number = builder.evm_read::<U64Variable>();
         let prev_header_hash = builder.evm_read::<Bytes32Variable>();
 
-        let next_header_hash =
-            builder.step::<MAX_VALIDATOR_SET_SIZE>(prev_block_number, prev_header_hash);
+        let next_header_hash = builder.step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            C::CHAIN_ID_BYTES,
+            prev_block_number,
+            prev_header_hash,
+        );
 
         builder.evm_write(next_header_hash);
     }
@@ -135,6 +153,15 @@ mod tests {
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
 
     use super::*;
+    use crate::config::TendermintConfig;
+
+    const CHAIN_ID_BYTES: &[u8] = b"mocha-4";
+    const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Mocha4Config;
+    impl TendermintConfig<CHAIN_ID_SIZE_BYTES> for Mocha4Config {
+        const CHAIN_ID_BYTES: &'static [u8] = CHAIN_ID_BYTES;
+    }
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -146,14 +173,20 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_generators(
+            &mut hint_registry,
+        );
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_gates(
+            &mut gate_registry,
+        );
 
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
@@ -175,7 +208,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -197,7 +232,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        StepCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        StepCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();

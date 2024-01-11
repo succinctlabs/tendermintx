@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
@@ -9,12 +12,14 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
+use crate::config::TendermintConfig;
 use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -22,8 +27,9 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for CircuitBuilder<L, D> {
-    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -52,7 +58,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let trusted_nb_validators = output_stream.read::<Variable>(self);
 
-        self.verify_skip(
+        self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            chain_id_bytes,
             &target_block_validators,
             nb_validators,
             &target_header,
@@ -117,17 +124,27 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 }
 
 #[derive(Debug, Clone)]
-pub struct SkipCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    _config: usize,
+pub struct SkipCircuit<
+    const MAX_VALIDATOR_SET_SIZE: usize,
+    const CHAIN_ID_SIZE_BYTES: usize,
+    C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+> {
+    _config: PhantomData<C>,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<
+        const MAX_VALIDATOR_SET_SIZE: usize,
+        const CHAIN_ID_SIZE_BYTES: usize,
+        C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+    > Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, C>
+{
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let trusted_block = builder.evm_read::<U64Variable>();
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
-        let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE>(
+        let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            C::CHAIN_ID_BYTES,
             trusted_block,
             trusted_header_hash,
             target_block,
@@ -157,6 +174,16 @@ mod tests {
 
     use super::*;
 
+    const CHAIN_ID_BYTES: &[u8] = b"mocha-4";
+    const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
+
+    // Mocha-4 is Celestia's testnet chain ID.
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Mocha4Config;
+    impl TendermintConfig<CHAIN_ID_SIZE_BYTES> for Mocha4Config {
+        const CHAIN_ID_BYTES: &'static [u8] = CHAIN_ID_BYTES;
+    }
+
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_serialization() {
@@ -164,17 +191,26 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 2;
+
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
+
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_generators(
+            &mut hint_registry,
+        );
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_gates(
+            &mut gate_registry,
+        );
 
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
@@ -186,6 +222,7 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
+
         // This is from block 3000 with requested block 3100
         let input_bytes = hex::decode(
             "0000000000000bb8a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000c1c",
@@ -195,7 +232,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -218,7 +257,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();

@@ -3,12 +3,9 @@ pub use tendermint::merkle::HASH_SIZE;
 /// The number of validators on the Tendermint chain.
 pub const VALIDATOR_SET_SIZE_MAX: usize = 100;
 
-/// The chain ID of the Tendermint chain.
-pub const CHAIN_ID_BYTES: &[u8] = b"celestia";
-pub const CHAIN_ID_SIZE_BYTES: usize = CHAIN_ID_BYTES.len();
-
 /// The maximum number of bytes in a protobuf-encoded chain ID. The maximum chain ID length is
-/// 50 characters + 2 bytes for the encoding prefix.
+/// 50 characters + 2 bytes for the encoding prefix. Source:
+/// https://docs.tendermint.com/v0.34/tendermint-core/using-tendermint.html#fields
 pub const PROTOBUF_CHAIN_ID_SIZE_BYTES: usize = 52;
 
 /// The number of bytes in a protobuf-encoded SHA256 hash.

@@ -11,10 +11,7 @@ use plonky2x::prelude::{
 use super::shared::TendermintHeader;
 use super::validator::TendermintValidator;
 use super::voting::TendermintVoting;
-use crate::consts::{
-    CHAIN_ID_BYTES, CHAIN_ID_SIZE_BYTES, HASH_SIZE, HEADER_PROOF_DEPTH,
-    VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
-};
+use crate::consts::{HASH_SIZE, HEADER_PROOF_DEPTH, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
@@ -44,16 +41,18 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Verify the chain ID against the header.
-    fn verify_chain_id(
+    fn verify_chain_id<const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         chain_id_proof: &ChainIdProofVariable,
         header: &TendermintHashVariable,
     );
 
     /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
     /// header's validators set signed on a message that includes the header hash.
-    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -103,8 +102,9 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     ///
     /// Note: Only used if a satisfying pair of blocks for skipping intermediate verification is not
     /// found, which is extremely rare.
-    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -122,8 +122,9 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     ///
     /// Note: Skip verification is valid while the time elapsed between the trusted block and the
     /// new block is less than the unbonding period. This is checked in the smart contract.
-    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -217,8 +218,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
     }
 
-    fn verify_chain_id(
+    fn verify_chain_id<const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         chain_id_proof: &ChainIdProofVariable,
         header: &TendermintHashVariable,
     ) {
@@ -240,18 +242,21 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
         self.assert_is_equal(computed_header, *header);
         // Extract the chain ID bytes from the chain ID proof.
-        let extracted_chain_id: ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES> = chain_id_proof
-            .chain_id[2..2 + CHAIN_ID_BYTES.len()]
-            .to_vec()
-            .into();
+        let extracted_chain_id: ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }> =
+            chain_id_proof.chain_id[2..2 + CHAIN_ID_SIZE_BYTES]
+                .to_vec()
+                .into();
         let expected_chain_id = self
-            .constant::<ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES>>(CHAIN_ID_BYTES.to_vec());
+            .constant::<ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }>>(
+                chain_id_bytes.to_vec(),
+            );
         // Assert the computed chain ID matches the expected chain ID.
         self.assert_is_equal(extracted_chain_id, expected_chain_id);
     }
 
-    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -347,7 +352,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(*header, header_from_validator_root_proof);
 
         // Verify the chain ID against the header.
-        self.verify_chain_id(chain_id_proof, header);
+        self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(chain_id_bytes, chain_id_proof, header);
     }
 
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
@@ -490,8 +495,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(gte_threshold, true_v);
     }
 
-    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -503,7 +509,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         round_present: &BoolVariable,
     ) {
         // Verify the new Tendermint consensus block.
-        self.verify_header(
+        self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
+            chain_id_bytes,
             validators,
             nb_enabled_validators,
             header,
@@ -525,8 +532,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
     }
 
-    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize>(
+    fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -555,7 +563,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
 
         // Verify the target Tendermint consensus block.
-        self.verify_header(
+        self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
+            chain_id_bytes,
             validators,
             nb_enabled_validators,
             header,
@@ -578,16 +587,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 // Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::env;
 
     use ethers::types::H256;
     use plonky2x::prelude::DefaultBuilder;
     use subtle_encoding::hex;
-    use tendermint_proto::Protobuf;
 
     use super::*;
     use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
-    use crate::input::{InputDataFetcher, InputDataMode};
 
     #[test]
     fn test_verify_hash_in_message() {
