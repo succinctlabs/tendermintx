@@ -156,8 +156,8 @@ impl<
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
         generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
-        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
-            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+        <<L as PlonkParameters<D>>::Config as plonky2x::prelude::plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2x::prelude::plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
         generator_registry.register_async_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
