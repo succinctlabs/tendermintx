@@ -303,12 +303,12 @@ mod tests {
     fn test_skip_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 100;
         let trusted_header: [u8; 32] =
-            hex::decode("935786C7F889013D6B0D8DE8B11286DDB8DDE476A312FC5578FDC53985DC3035")
+            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let trusted_height = 15000u64;
-        let target_block = 50000u64;
-        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
+        let trusted_height = 10000u64;
+        let target_height = 10500u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 }
