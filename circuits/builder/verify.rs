@@ -49,7 +49,8 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
-    /// header's validators set signed on a message that includes the header hash.
+    /// header's validators set signed on a message that includes the header hash, and that the
+    /// chain ID in the header matches the expected chain ID.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
@@ -227,6 +228,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let false_t = self._false();
         let true_t = self._true();
 
+        // The path to the chain ID leaf in the chain ID proof (index 1).
         let chain_id_path = vec![true_t, false_t, false_t, false_t];
 
         // Leaf encode the protobuf-encoded chain ID bytes for hashing.
