@@ -192,7 +192,7 @@ mod tests {
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
 
-    // This test should not  run in CI because it uses the RPC instead of a fixture.
+    // This test should not run in CI because it uses the RPC instead of a fixture.
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_step_circuit_with_input_bytes() {
