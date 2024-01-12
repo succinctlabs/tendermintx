@@ -257,14 +257,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Extract the chain ID bytes from the chain ID proof against the header and assert it
         // matches the expected chain ID bytes.
-        let extracted_chain_id: ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }> =
-            chain_id_proof.chain_id[2..2 + CHAIN_ID_SIZE_BYTES]
-                .to_vec()
-                .into();
-        let expected_chain_id = self
-            .constant::<ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }>>(
-                expected_chain_id_bytes.to_vec(),
-            );
+        let extracted_chain_id: ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES> = chain_id_proof
+            .chain_id[2..2 + CHAIN_ID_SIZE_BYTES]
+            .to_vec()
+            .into();
+        let expected_chain_id = self.constant::<ArrayVariable<ByteVariable, CHAIN_ID_SIZE_BYTES>>(
+            expected_chain_id_bytes.to_vec(),
+        );
         self.assert_is_equal(extracted_chain_id, expected_chain_id);
     }
 
