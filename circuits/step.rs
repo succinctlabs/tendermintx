@@ -285,11 +285,11 @@ mod tests {
     fn test_step_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 100;
         let header: [u8; 32] =
-            hex::decode("DA1C195D8A0E74E50A8C6ABE24B63024F9865624609726C9954D713E21509E27")
+            hex::decode("E2BA1B86926925A69C2FCC32E5178E7E6653D386C956BB975142FA73211A9444")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let height = 157000u64;
+        let height = 10500u64;
         test_step_template::<MAX_VALIDATOR_SET_SIZE>(height, header);
     }
 }
