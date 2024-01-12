@@ -227,18 +227,24 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let false_t = self._false();
         let true_t = self._true();
 
-        // Assert the extracted chain ID is from the header.
         let chain_id_path = vec![true_t, false_t, false_t, false_t];
 
-        let mut extended_chain_id_bytes = chain_id_proof.chain_id.data.clone();
-        // Resize the chain id bytes to 64 bytes (1 chunk).
+        // Leaf encode the protobuf-encoded chain ID bytes for hashing.
+        let mut extended_chain_id_bytes = self.constant::<BytesVariable<1>>([0x00]).0.to_vec();
+        extended_chain_id_bytes.extend_from_slice(&chain_id_proof.chain_id.data);
+
+        // Extend the leaf-encoded chain ID bytes to 64 bytes for variable SHA256 hashing.
         extended_chain_id_bytes.resize(64, self.zero::<ByteVariable>());
 
-        // Hash the encoded chain id.
-        let leaf_hash = self.curta_sha256_variable(
-            &extended_chain_id_bytes,
-            chain_id_proof.enc_chain_id_byte_length,
-        );
+        // Add 1 to the encoded chain id byte length to account for the 0x00 leaf prefix byte.
+        let one_u32 = self.constant::<U32Variable>(1);
+        let encoded_chain_id_byte_length =
+            self.add(chain_id_proof.enc_chain_id_byte_length, one_u32);
+
+        // Hash the leaf-encoded chain ID bytes.
+        let leaf_hash =
+            self.curta_sha256_variable(&extended_chain_id_bytes, encoded_chain_id_byte_length);
+
         // Verify the computed header from the chain id proof against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
             &chain_id_proof.proof,
@@ -246,7 +252,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             leaf_hash,
         );
         self.assert_is_equal(computed_header, *header);
-        // Extract the chain ID bytes from the chain ID proof.
+
+        // Extract the chain ID bytes from the chain ID proof against the header and assert it
+        // matches the expected chain ID bytes.
         let extracted_chain_id: ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }> =
             chain_id_proof.chain_id[2..2 + CHAIN_ID_SIZE_BYTES]
                 .to_vec()
@@ -255,7 +263,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             .constant::<ArrayVariable<ByteVariable, { CHAIN_ID_SIZE_BYTES }>>(
                 expected_chain_id_bytes.to_vec(),
             );
-        // Assert the computed chain ID matches the expected chain ID.
         self.assert_is_equal(extracted_chain_id, expected_chain_id);
     }
 
