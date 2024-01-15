@@ -34,7 +34,6 @@ ethers = "2.0.9"
 itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
-plonky2 = { git = "https://github.com/mir-protocol/plonky2.git" }
 plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
 succinct-client = { git = "https://github.com/succinctlabs/succinctx.git" }
 rand = "0.8.5"

@@ -2,15 +2,15 @@ use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
 use plonky2x::frontend::merkle::tree::MerkleInclusionProofVariable;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::U32Variable;
+use plonky2x::frontend::vars::{ByteVariable, U32Variable};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
     PlonkParameters, RichField, Variable,
 };
 
 use crate::consts::{
-    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_HASH_SIZE_BYTES,
-    VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+    HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES, PROTOBUF_CHAIN_ID_SIZE_BYTES,
+    PROTOBUF_HASH_SIZE_BYTES, VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
 };
 
 /// A protobuf-encoded tendermint block ID as a 72 byte target.
@@ -27,6 +27,18 @@ pub type MarshalledValidatorVariable = BytesVariable<VALIDATOR_BYTE_LENGTH_MAX>;
 
 /// The message signed by the validator as a variable.
 pub type ValidatorMessageVariable = BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>;
+
+// A chain id proof as a struct.
+// Proof is the chain id proof against a header.
+// ChainID is the chain id of the header as bytes.
+// EncChainIdByteLength is the length of the protobuf-encoded chain id as a u32.
+#[derive(Clone, Debug, CircuitVariable)]
+#[value_name(ChainIdProofValueType)]
+pub struct ChainIdProofVariable {
+    pub proof: ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
+    pub enc_chain_id_byte_length: U32Variable,
+    pub chain_id: ArrayVariable<ByteVariable, PROTOBUF_CHAIN_ID_SIZE_BYTES>,
+}
 
 // A block height proof as a struct.
 // Proof is the block height proof against a header.

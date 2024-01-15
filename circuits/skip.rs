@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
@@ -9,12 +12,14 @@ use plonky2x::prelude::{
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
+use crate::config::TendermintConfig;
 use crate::input::InputDataFetcher;
 use crate::variables::*;
 
 pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
-    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -22,8 +27,9 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for CircuitBuilder<L, D> {
-    fn skip<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
+        chain_id_bytes: &[u8],
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -41,6 +47,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         let nb_validators = output_stream.read::<Variable>(self);
         let target_header = output_stream.read::<Bytes32Variable>(self);
         let round_present = output_stream.read::<BoolVariable>(self);
+        let target_header_chain_id_proof = output_stream.read::<ChainIdProofVariable>(self);
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
         let target_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
@@ -51,10 +58,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let trusted_nb_validators = output_stream.read::<Variable>(self);
 
-        self.verify_skip(
+        self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            chain_id_bytes,
             &target_block_validators,
             nb_validators,
             &target_header,
+            &target_header_chain_id_proof,
             &target_header_block_height_proof,
             &target_header_validators_hash_proof,
             &round_present,
@@ -98,6 +107,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_target_validators));
         output_stream.write_value::<Bytes32Variable>(result.target_header.into());
         output_stream.write_value::<BoolVariable>(result.round_present);
+        output_stream.write_value::<ChainIdProofVariable>(result.target_block_chain_id_proof);
         output_stream.write_value::<HeightProofVariable>(result.target_block_height_proof);
         output_stream
             .write_value::<HashInclusionProofVariable>(result.target_block_validators_hash_proof);
@@ -114,17 +124,27 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 }
 
 #[derive(Debug, Clone)]
-pub struct SkipCircuit<const MAX_VALIDATOR_SET_SIZE: usize> {
-    _config: usize,
+pub struct SkipCircuit<
+    const MAX_VALIDATOR_SET_SIZE: usize,
+    const CHAIN_ID_SIZE_BYTES: usize,
+    C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+> {
+    _config: PhantomData<C>,
 }
 
-impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE> {
+impl<
+        const MAX_VALIDATOR_SET_SIZE: usize,
+        const CHAIN_ID_SIZE_BYTES: usize,
+        C: TendermintConfig<CHAIN_ID_SIZE_BYTES>,
+    > Circuit for SkipCircuit<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, C>
+{
     fn define<L: PlonkParameters<D>, const D: usize>(builder: &mut CircuitBuilder<L, D>) {
         let trusted_block = builder.evm_read::<U64Variable>();
         let trusted_header_hash = builder.evm_read::<Bytes32Variable>();
         let target_block = builder.evm_read::<U64Variable>();
 
-        let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE>(
+        let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
+            C::CHAIN_ID_BYTES,
             trusted_block,
             trusted_header_hash,
             target_block,
@@ -136,8 +156,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize> Circuit for SkipCircuit<MAX_VALIDATOR_
     fn register_generators<L: PlonkParameters<D>, const D: usize>(
         generator_registry: &mut plonky2x::prelude::HintRegistry<L, D>,
     ) where
-        <<L as PlonkParameters<D>>::Config as plonky2::plonk::config::GenericConfig<D>>::Hasher:
-            plonky2::plonk::config::AlgebraicHasher<L::Field>,
+        <<L as PlonkParameters<D>>::Config as plonky2x::prelude::plonky2::plonk::config::GenericConfig<D>>::Hasher:
+            plonky2x::prelude::plonky2::plonk::config::AlgebraicHasher<L::Field>,
     {
         generator_registry.register_async_hint::<SkipOffchainInputs<MAX_VALIDATOR_SET_SIZE>>();
     }
@@ -153,6 +173,7 @@ mod tests {
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
 
     use super::*;
+    use crate::config::{Mocha4Config, MOCHA_4_CHAIN_ID_SIZE_BYTES};
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -161,17 +182,26 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 2;
+
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
+
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
         let mut hint_registry = HintRegistry::new();
         let mut gate_registry = GateRegistry::new();
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_generators(&mut hint_registry);
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::register_gates(&mut gate_registry);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_generators(
+            &mut hint_registry,
+        );
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::register_gates(
+            &mut gate_registry,
+        );
 
         circuit.test_serializers(&gate_registry, &hint_registry);
     }
@@ -183,6 +213,7 @@ mod tests {
         env_logger::try_init().unwrap_or_default();
 
         const MAX_VALIDATOR_SET_SIZE: usize = 4;
+
         // This is from block 3000 with requested block 3100
         let input_bytes = hex::decode(
             "0000000000000bb8a8512f18c34b70e1533cfd5aa04f251fcb0d7be56ec570051fbad9bdb9435e6a0000000000000c1c",
@@ -192,7 +223,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -215,7 +248,9 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE>::define(&mut builder);
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
+            &mut builder,
+        );
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -268,12 +303,12 @@ mod tests {
     fn test_skip_large() {
         const MAX_VALIDATOR_SET_SIZE: usize = 100;
         let trusted_header: [u8; 32] =
-            hex::decode("935786C7F889013D6B0D8DE8B11286DDB8DDE476A312FC5578FDC53985DC3035")
+            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let trusted_height = 15000u64;
-        let target_block = 50000u64;
-        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_block)
+        let trusted_height = 10000u64;
+        let target_height = 10500u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 }

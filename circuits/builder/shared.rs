@@ -169,7 +169,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // Verify the computed block height against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
             proof,
-            &block_height_path.try_into().unwrap(),
+            &block_height_path.into(),
             leaf_hash,
         );
 

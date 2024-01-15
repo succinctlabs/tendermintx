@@ -15,9 +15,12 @@
 //!
 //!
 use plonky2x::backend::function::Plonky2xFunction;
+use tendermintx::config::{CelestiaConfig, CELESTIA_CHAIN_ID_SIZE_BYTES};
 use tendermintx::consts::VALIDATOR_SET_SIZE_MAX;
 use tendermintx::step::StepCircuit;
 
 fn main() {
-    StepCircuit::<VALIDATOR_SET_SIZE_MAX>::entrypoint();
+    // Note: Defaults to using the CelestiaConfig, but any Tendermint chain config can be used.
+    StepCircuit::<VALIDATOR_SET_SIZE_MAX, CELESTIA_CHAIN_ID_SIZE_BYTES, CelestiaConfig>::entrypoint(
+    );
 }

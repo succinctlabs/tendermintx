@@ -2,6 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod builder;
+pub mod config;
 pub mod consts;
 pub mod input;
 pub mod skip;
