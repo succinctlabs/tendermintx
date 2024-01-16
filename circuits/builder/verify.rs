@@ -326,6 +326,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         let extracted_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
         self.assert_is_equal(extracted_hash, computed_validators_hash);
 
+        // Assert the validators hash came from this header.
+        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let header_from_validator_root_proof =
+            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.into());
+        self.assert_is_equal(*header, header_from_validator_root_proof);
+
         // Assert signed validators comprise at least 2/3 of the total voting power.
         let threshold_numerator = self.constant::<U64Variable>(2);
         let threshold_denominator = self.constant::<U64Variable>(3);
@@ -368,12 +374,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             let is_precommit_and_signed = self.and(is_precommit, validators[i].signed);
             self.assert_is_equal(is_precommit_and_signed, signed[i]);
         }
-
-        // Assert the validators hash came from this header.
-        let val_hash_path = vec![true_t, true_t, true_t, false_t];
-        let header_from_validator_root_proof =
-            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.into());
-        self.assert_is_equal(*header, header_from_validator_root_proof);
 
         // Verify the chain ID against the header.
         self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(
