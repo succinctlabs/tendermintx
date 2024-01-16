@@ -60,6 +60,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
 
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
+            &target_block,
             &target_block_validators,
             nb_validators,
             &target_header,

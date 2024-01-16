@@ -55,9 +55,9 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         header: &TendermintHashVariable,
     );
 
-    /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
-    /// header's validators set signed on a message that includes the header hash, and that the
-    /// chain ID in the header matches the expected chain ID.
+    /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validator set
+    /// specified in the header signed on a Precommit message that includes the header hash, and
+    /// that the chain ID in the header matches the expected chain ID.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
@@ -133,6 +133,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        target_block: &U64Variable,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -577,6 +578,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        target_block: &U64Variable,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -621,7 +623,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             &header_height_proof.proof,
             &header_height_proof.height,
             header_height_proof.enc_height_byte_length,
-        )
+        );
+        self.assert_is_equal(*target_block, header_height_proof.height);
     }
 }
 
