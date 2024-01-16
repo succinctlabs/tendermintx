@@ -356,6 +356,17 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
                 self.verify_hash_in_message(&validators[i].message, *header, *round_present);
             let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
             self.assert_is_equal(hash_in_message_and_signed, signed[i]);
+
+            // Verify every signed validator's message is a Precommit message (not a Prevote).
+            // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
+            // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
+            let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
+            let is_precommit = self.is_equal(
+                expected_encoded_vote,
+                validators[i].message[1..3].to_vec().into(),
+            );
+            let is_precommit_and_signed = self.and(is_precommit, validators[i].signed);
+            self.assert_is_equal(is_precommit_and_signed, signed[i]);
         }
 
         // Assert the validators hash came from this header.
