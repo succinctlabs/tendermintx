@@ -21,8 +21,8 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
-    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte for the marshalled varint encoding.
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the
+    /// Tendermint spec. Prepends 0x00 byte as leaf prefix and 0x08 byte for varint encoding.
     fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
