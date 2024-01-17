@@ -18,10 +18,6 @@ use crate::consts::{
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
-    /// Get the path to a leaf in the Tendermint header.
-    fn get_path_to_leaf(&mut self, index: usize)
-        -> ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>;
-
     /// Extract the header hash from the signed message from a validator. The location of the
     /// header hash in the signed message depends on whether the round is 0 for the message.
     fn verify_hash_in_message(
@@ -152,28 +148,6 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
-    fn get_path_to_leaf(
-        &mut self,
-        index: usize,
-    ) -> ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH> {
-        let false_t = self._false();
-        let true_t = self._true();
-
-        // The path to the leaf in a Tendermint header.
-        let mut path = Vec::new();
-        let mut curr_idx = index;
-        for _ in 0..HEADER_PROOF_DEPTH {
-            if curr_idx % 2 == 0 {
-                path.push(false_t);
-            } else {
-                path.push(true_t);
-            }
-            curr_idx /= 2;
-        }
-
-        ArrayVariable::<BoolVariable, HEADER_PROOF_DEPTH>::new(path)
-    }
-
     fn verify_hash_in_message(
         &mut self,
         message: &ValidatorMessageVariable,
