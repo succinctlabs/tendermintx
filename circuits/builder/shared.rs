@@ -6,17 +6,23 @@ use plonky2x::prelude::{
     CircuitVariable, Field, PlonkParameters, Variable,
 };
 
-use crate::consts::{HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX};
+use crate::consts::{
+    BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX,
+};
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
+    /// Get the path to a leaf in the Tendermint header.
+    fn get_path_to_leaf(&mut self, index: usize)
+        -> ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH>;
+
     /// Serializes an int64 as a protobuf varint.
     fn marshal_int64_varint(
         &mut self,
         num: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX];
 
-    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the Tendermint spec.
-    /// Prepends a 0x00 byte for the leaf prefix and a 0x08 byte for the marshalled varint encoding.
+    /// Encodes the marshalled height into a BytesVariable<11> that can be hashed according to the
+    /// Tendermint spec. Prepends 0x00 byte as leaf prefix and 0x08 byte for varint encoding.
     fn leaf_encode_marshalled_varint(
         &mut self,
         marshalled_varint: &BytesVariable<9>,
@@ -33,6 +39,29 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBuilder<L, D> {
+    /// Get the path to a leaf in the Tendermint header.
+    fn get_path_to_leaf(
+        &mut self,
+        index: usize,
+    ) -> ArrayVariable<BoolVariable, HEADER_PROOF_DEPTH> {
+        let false_t = self._false();
+        let true_t = self._true();
+
+        // The path to the leaf in a Tendermint header.
+        let mut path = Vec::new();
+        let mut curr_idx = index;
+        for _ in 0..HEADER_PROOF_DEPTH {
+            if curr_idx % 2 == 0 {
+                path.push(false_t);
+            } else {
+                path.push(true_t);
+            }
+            curr_idx /= 2;
+        }
+
+        ArrayVariable::<BoolVariable, HEADER_PROOF_DEPTH>::new(path)
+    }
+
     fn marshal_int64_varint(
         &mut self,
         value: &U64Variable,
@@ -143,9 +172,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         height: &U64Variable,
         encoded_height_byte_length: U32Variable,
     ) {
-        let false_t = self._false();
-        let true_t = self._true();
-        let block_height_path = vec![false_t, true_t, false_t, false_t];
+        let block_height_path = self.get_path_to_leaf(BLOCK_HEIGHT_INDEX);
 
         // Marshal the block height into bytes, then encode it as a leaf.
         let encoded_height = self.marshal_int64_varint(height);
@@ -169,7 +196,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // Verify the computed block height against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
             proof,
-            &block_height_path.into(),
+            &block_height_path,
             leaf_hash,
         );
 

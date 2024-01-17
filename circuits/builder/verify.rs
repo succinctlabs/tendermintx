@@ -11,7 +11,10 @@ use plonky2x::prelude::{
 use super::shared::TendermintHeader;
 use super::validator::TendermintValidator;
 use super::voting::TendermintVoting;
-use crate::consts::{HASH_SIZE, HEADER_PROOF_DEPTH, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
+use crate::consts::{
+    CHAIN_ID_INDEX, HASH_SIZE, HEADER_PROOF_DEPTH, LAST_BLOCK_ID_INDEX, NEXT_VALIDATORS_HASH_INDEX,
+    VALIDATORS_HASH_INDEX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX,
+};
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
@@ -48,9 +51,9 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         header: &TendermintHashVariable,
     );
 
-    /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validators in
-    /// header's validators set signed on a message that includes the header hash, and that the
-    /// chain ID in the header matches the expected chain ID.
+    /// Verify a Tendermint consensus block. Specifically, verify that 2/3 of the validator set
+    /// specified in the header signed on a Precommit message that includes the header hash, and
+    /// that the chain ID in the header matches the expected chain ID.
     fn verify_header<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
@@ -126,6 +129,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        target_block: &U64Variable,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -177,11 +181,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         prev_header: TendermintHashVariable,
         last_block_id_proof: &BlockIDInclusionProofVariable,
     ) {
-        let last_block_id_path = vec![self._false(), self._false(), self._true(), self._false()];
+        let last_block_id_path = self.get_path_to_leaf(LAST_BLOCK_ID_INDEX);
 
         // Assert the last block id came from this header.
         let header_from_last_block_id_proof =
-            self.get_root_from_merkle_proof(last_block_id_proof, &last_block_id_path.into());
+            self.get_root_from_merkle_proof(last_block_id_proof, &last_block_id_path);
         self.assert_is_equal(header_from_last_block_id_proof, *header);
 
         // Assert the previous header from the last block id proof matches the previous header.
@@ -196,12 +200,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
     ) {
-        let next_val_hash_path = ArrayVariable::<BoolVariable, HEADER_PROOF_DEPTH>::new(vec![
-            self._false(),
-            self._false(),
-            self._false(),
-            self._true(),
-        ]);
+        let next_val_hash_path = self.get_path_to_leaf(NEXT_VALIDATORS_HASH_INDEX);
 
         // Assert the root of the next validators hash proof matches the prev header hash.
         let computed_prev_header_root = self.get_root_from_merkle_proof(
@@ -225,11 +224,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         chain_id_proof: &ChainIdProofVariable,
         header: &TendermintHashVariable,
     ) {
-        let false_t = self._false();
-        let true_t = self._true();
-
-        // The path to the chain ID leaf in the chain ID proof (index 1).
-        let chain_id_path = vec![true_t, false_t, false_t, false_t];
+        let chain_id_path = self.get_path_to_leaf(CHAIN_ID_INDEX);
 
         // Leaf encode the protobuf-encoded chain ID bytes for hashing.
         let mut extended_chain_id_bytes = self.constant::<BytesVariable<1>>([0x00]).0.to_vec();
@@ -250,7 +245,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // Verify the computed header from the chain id proof against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
             &chain_id_proof.proof,
-            &chain_id_path.into(),
+            &chain_id_path,
             leaf_hash,
         );
         self.assert_is_equal(computed_header, *header);
@@ -277,9 +272,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
     ) {
-        let false_t = self._false();
-        let true_t = self._true();
-
         // Extract the necessary data for verifying the validators' signatures.
         let (mut signed, mut messages, mut message_byte_lengths, mut signatures, mut pubkeys) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -327,9 +319,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(extracted_hash, computed_validators_hash);
 
         // Assert the validators hash came from this header.
-        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        let val_hash_path = self.get_path_to_leaf(VALIDATORS_HASH_INDEX);
         let header_from_validator_root_proof =
-            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path.into());
+            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path);
         self.assert_is_equal(*header, header_from_validator_root_proof);
 
         // Assert signed validators comprise at least 2/3 of the total voting power.
@@ -420,15 +412,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         >,
         trusted_nb_enabled_validators: Variable,
     ) {
-        let false_t = self._false();
-        let true_t = self._true();
-
-        // Get the header from the validator hash merkle proof
-        let val_hash_path = vec![true_t, true_t, true_t, false_t];
+        // Get the header from the validator hash merkle proof.
+        let val_hash_path = self.get_path_to_leaf(VALIDATORS_HASH_INDEX);
         let header_from_validator_root_proof =
-            self.get_root_from_merkle_proof(trusted_validator_hash_proof, &val_hash_path.into());
+            self.get_root_from_merkle_proof(trusted_validator_hash_proof, &val_hash_path);
 
-        // Assert the validator hash proof matches the trusted header
+        // Assert the validator hash proof matches the trusted header.
         self.assert_is_equal(header_from_validator_root_proof, trusted_header);
 
         // Compute the validators hash of the trusted block from the necessary fields.
@@ -563,6 +552,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        target_block: &U64Variable,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
@@ -607,7 +597,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             &header_height_proof.proof,
             &header_height_proof.height,
             header_height_proof.enc_height_byte_length,
-        )
+        );
+        self.assert_is_equal(*target_block, header_height_proof.height);
     }
 }
 
