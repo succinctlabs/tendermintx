@@ -20,6 +20,7 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -30,6 +31,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -57,6 +59,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         let trusted_header_validators_hash_fields = output_stream
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let trusted_nb_validators = output_stream.read::<Variable>(self);
+
+        // Verify target block > trusted block.
+        self.gt(target_block, trusted_block);
+
+        let skip_max_var = self.constant::<U64Variable>(skip_max as u64);
+        let max_block = self.add(trusted_block, skip_max_var);
+        // Verify target block <= trusted block + skip_max.
+        self.lte(target_block, max_block);
 
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
@@ -146,6 +156,7 @@ impl<
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
+            C::SKIP_MAX,
             trusted_block,
             trusted_header_hash,
             target_block,
