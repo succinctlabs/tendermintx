@@ -73,13 +73,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         let scaled_accumulated = self.mul(accumulated_voting_power, *threshold_denominator);
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
 
-        // Return accumulated_voting_power >= total_vp * (threshold_numerator / threshold_denominator).
-        self.gte(scaled_accumulated, scaled_threshold)
+        // Return accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
+        self.gt(scaled_accumulated, scaled_threshold)
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::env;
+
     use plonky2x::prelude::DefaultBuilder;
 
     use super::*;
@@ -88,6 +90,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_accumulate_voting_power() {
+        env::set_var("RUST_LOG", "info");
         env_logger::try_init().unwrap_or_default();
 
         let test_cases = [
@@ -102,7 +105,7 @@ pub(crate) mod tests {
             (
                 vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64],
                 [1, 1, 0, 0],
-                true,
+                false,
             ),
             (
                 vec![4294967296000i64, 4294967296000i64, 4294967296000i64, 0i64],
