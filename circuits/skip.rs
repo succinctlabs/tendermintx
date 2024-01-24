@@ -60,16 +60,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let trusted_nb_validators = output_stream.read::<Variable>(self);
 
-        // Verify target block > trusted block.
-        self.gt(target_block, trusted_block);
-
-        let skip_max_var = self.constant::<U64Variable>(skip_max as u64);
-        let max_block = self.add(trusted_block, skip_max_var);
-        // Verify target block <= trusted block + skip_max.
-        self.lte(target_block, max_block);
-
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
+            skip_max,
+            &trusted_block,
             &target_block,
             &target_block_validators,
             nb_validators,
