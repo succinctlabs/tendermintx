@@ -135,7 +135,7 @@ impl InputDataFetcher {
     pub async fn get_latest_signed_header(&self) -> SignedHeader {
         if self.mode == InputDataMode::Rpc {
             let query_url = format!("{}/commit", self.url);
-            let res = request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+            let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
             let v: CommitResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
             v.result.signed_header
         } else {
@@ -187,7 +187,7 @@ impl InputDataFetcher {
 
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
@@ -252,7 +252,7 @@ impl InputDataFetcher {
         );
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
