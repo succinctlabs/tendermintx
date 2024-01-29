@@ -113,11 +113,11 @@ impl InputDataFetcher {
 
     // Request data from the Tendermint RPC with quadratic backoff.
     pub async fn request_from_rpc(&self, url: &str, retries: usize) -> String {
-        info!("Querying url {:?}", url.as_str());
+        info!("Querying url {:?}", url);
         let mut res = reqwest::get(url).await;
         let mut num_retries = 0;
         while res.is_err() && num_retries < retries {
-            info!("Querying url {:?}", url.as_str());
+            info!("Querying url {:?}", url);
             res = reqwest::get(url).await;
             // Quadratic backoff for requests.
             tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(num_retries as u32))).await;
