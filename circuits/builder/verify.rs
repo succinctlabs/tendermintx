@@ -2,7 +2,7 @@ use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ByteVariable, EvmVariable, U32Variable};
+use plonky2x::frontend::vars::{ByteVariable, U32Variable};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
     Field, PlonkParameters, Variable,
@@ -18,26 +18,6 @@ use crate::consts::{
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
-    /// Verify each validator's signature contains the correct data.
-    fn verify_validator_signature_data(
-        &mut self,
-        header: &TendermintHashVariable,
-        height: &U64Variable,
-        message: &ValidatorMessageVariable,
-        is_enabled: &BoolVariable,
-        signed: &BoolVariable,
-        round: &U64Variable,
-    );
-
-    /// Extract the header hash from the signed message from a validator. The location of the
-    /// header hash in the signed message depends on whether the round is 0 for the message.
-    fn verify_hash_in_message(
-        &mut self,
-        message: &ValidatorMessageVariable,
-        expected_header_hash: Bytes32Variable,
-        round: U64Variable,
-    ) -> BoolVariable;
-
     /// Verify the header hash of the previous block matches the new block's parent hash.
     fn verify_prev_header_in_header(
         &mut self,
@@ -161,97 +141,6 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
-    fn verify_validator_signature_data(
-        &mut self,
-        header: &TendermintHashVariable,
-        height: &U64Variable,
-        message: &ValidatorMessageVariable,
-        is_enabled: &BoolVariable,
-        signed: &BoolVariable,
-        round: &U64Variable,
-    ) {
-        // If signed, (a)
-        // - enabled (b)
-        // - message includes the header hash (c)
-        // - message is a Precommit message (d)
-        // - height of the target_header matches the height in the message (e)
-        // - if round is non-zero, specified round matches message (all validators have same round) (f)
-        // Verify a == a * b * c * d * e * f
-
-        // Verify every signed validator's message includes the header hash.
-        let hash_in_message = self.verify_hash_in_message(message, *header, *round);
-
-        // Verify every signed validator's message is a Precommit message (not a Prevote).
-        // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
-        // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
-        let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
-        let is_precommit = self.is_equal(expected_encoded_vote, message[1..3].to_vec().into());
-
-        // Verify the height of the target_header matches the height in the message. The height
-        // starts at index 4 in the signed validator's message, and is represented as an sfixed64.
-        let mut encoded_height = height.encode(self);
-        // Reverse the byte order to match sfixed64's LE order.
-        encoded_height.reverse();
-        let is_commit_height_valid = self.is_equal(
-            ArrayVariable::<ByteVariable, 8>::from(encoded_height),
-            ArrayVariable::<ByteVariable, 8>::from(message[4..12].to_vec()),
-        );
-
-        // If round is non-zero, verify the specified round matches the message.
-        let zero = self.zero();
-        let true_v = self._true();
-        let is_round_zero = self.is_equal(*round, zero);
-        let mut encoded_round = round.encode(self);
-        // Reverse the byte order to match sfixed64's LE order.
-        encoded_round.reverse();
-        let is_commit_round_valid = self.is_equal(
-            ArrayVariable::<ByteVariable, 8>::from(encoded_round),
-            ArrayVariable::<ByteVariable, 8>::from(message[13..21].to_vec()),
-        );
-        // If round is zero, skip this check.
-        let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
-
-        let is_valid_message = self.get_array_and(&[
-            *signed,
-            *is_enabled,
-            hash_in_message,
-            is_precommit,
-            is_commit_height_valid,
-            is_commit_round_valid,
-        ]);
-        self.assert_is_equal(*signed, is_valid_message);
-    }
-
-    fn verify_hash_in_message(
-        &mut self,
-        message: &ValidatorMessageVariable,
-        expected_header_hash: Bytes32Variable,
-        round: U64Variable,
-    ) -> BoolVariable {
-        // If the round is zero, the hash starts at index 16.
-        const ROUND_ZERO_HEADER_HASH_START_IDX: usize = 16;
-        let round_zero_header: Bytes32Variable = message
-            [ROUND_ZERO_HEADER_HASH_START_IDX..ROUND_ZERO_HEADER_HASH_START_IDX + HASH_SIZE]
-            .into();
-
-        // If the round is non-zero, the hash starts at index 25.
-        const ROUND_NONZERO_HEADER_HASH_START_IDX: usize = 25;
-        let round_nonzero_header: Bytes32Variable = message
-            [ROUND_NONZERO_HEADER_HASH_START_IDX..ROUND_NONZERO_HEADER_HASH_START_IDX + HASH_SIZE]
-            .into();
-
-        // If the round is 0, it is not present in the signed message.
-        let zero = self.zero();
-        let round_not_present = self.is_equal(round, zero);
-
-        // Select the correct header hash based on whether the round is present in the message.
-        let computed_header =
-            self.select(round_not_present, round_zero_header, round_nonzero_header);
-
-        // Assert the computed header hash matches the expected header hash.
-        self.is_equal(computed_header, expected_header_hash)
-    }
-
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
