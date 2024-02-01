@@ -44,6 +44,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
             output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let nb_validators = output_stream.read::<Variable>(self);
         let next_block_chain_id_proof = output_stream.read::<ChainIdProofVariable>(self);
+        let next_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
         let next_block_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
         let next_block_last_block_id_proof =
@@ -51,17 +52,22 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let prev_block_next_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
 
+        let one = self.one();
+        let next_block_number = self.add(prev_block_number, one);
+
         self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
             &next_block_validators,
             nb_validators,
             &next_header,
-            &prev_header_hash,
+            &next_block_number,
             &next_block_chain_id_proof,
+            &next_header_block_height_proof,
             &next_block_validators_hash_proof,
-            &prev_block_next_validators_hash_proof,
             &next_block_last_block_id_proof,
             &round_present,
+            &prev_header_hash,
+            &prev_block_next_validators_hash_proof,
         );
         next_header
     }
@@ -96,6 +102,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
         );
         output_stream.write_value::<Variable>(L::Field::from_canonical_usize(result.nb_validators));
         output_stream.write_value::<ChainIdProofVariable>(result.next_block_chain_id_proof);
+        output_stream.write_value::<HeightProofVariable>(result.next_block_height_proof);
         output_stream
             .write_value::<HashInclusionProofVariable>(result.next_block_validators_hash_proof);
         output_stream

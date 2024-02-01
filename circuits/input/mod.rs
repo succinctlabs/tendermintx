@@ -49,6 +49,7 @@ pub struct StepInputs<F: RichField> {
     pub next_block_validators: Vec<ValidatorType<F>>,
     pub nb_validators: usize,
     pub next_block_chain_id_proof: ChainIdProofValueType<F>,
+    pub next_block_height_proof: HeightProofValueType<F>,
     pub next_block_validators_hash_proof:
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     pub next_block_last_block_id_proof:
@@ -358,6 +359,18 @@ impl InputDataFetcher {
             proof: next_block_chain_id_proof.1,
         };
 
+        let next_block_height_proof = self.get_merkle_proof(
+            &next_block_signed_header.header,
+            BLOCK_HEIGHT_INDEX as u64,
+            next_block_signed_header.header.height.encode_vec(),
+        );
+        let next_block_height_proof = HeightProofValueType::<F> {
+            height: next_block_signed_header.header.height.value(),
+            enc_height_byte_length: next_block_signed_header.header.height.encode_vec().len()
+                as u32,
+            proof: next_block_height_proof.1,
+        };
+
         let next_block_validators_hash_proof = self.get_inclusion_proof(
             &next_block_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -395,6 +408,7 @@ impl InputDataFetcher {
             next_block_validators,
             nb_validators,
             next_block_chain_id_proof,
+            next_block_height_proof,
             next_block_validators_hash_proof,
             next_block_last_block_id_proof,
             prev_block_next_validators_hash_proof,
