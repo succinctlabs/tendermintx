@@ -1,5 +1,4 @@
 use ethers::types::U256;
-use log::debug;
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
     EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
@@ -13,7 +12,6 @@ use tendermint::crypto::signature::Verifier as _;
 use tendermint::validator::{Info, Set as TendermintValidatorSet};
 use tendermint::vote::{SignedVote, ValidatorIndex};
 use tendermint::PublicKey;
-use tendermint_proto::Protobuf;
 
 use super::tendermint_utils::get_vote_from_commit_sig;
 use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};

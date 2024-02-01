@@ -532,8 +532,10 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_signed_vote() {
-        let mut data_fetcher = super::InputDataFetcher::default();
-        data_fetcher.mode = super::InputDataMode::Rpc;
+        let data_fetcher = super::InputDataFetcher {
+            mode: super::InputDataMode::Rpc,
+            ..Default::default()
+        };
 
         let target_block_number = 600000;
         let target_block_validator_set = data_fetcher
@@ -543,7 +545,7 @@ pub(crate) mod tests {
             .get_signed_header_from_number(target_block_number)
             .await;
 
-        let target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+        let _ = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
             &target_signed_header,
         );
@@ -552,8 +554,10 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_find_header_with_nonzero_round() {
-        let mut data_fetcher = super::InputDataFetcher::default();
-        data_fetcher.mode = super::InputDataMode::Rpc;
+        let data_fetcher = super::InputDataFetcher {
+            mode: super::InputDataMode::Rpc,
+            ..Default::default()
+        };
 
         let mut target_block_number = 610000;
         loop {
@@ -567,16 +571,5 @@ pub(crate) mod tests {
             }
             target_block_number += 1;
         }
-        // let target_block_validator_set = data_fetcher
-        //     .get_validator_set_from_number(target_block_number)
-        //     .await;
-        // let target_signed_header = data_fetcher
-        //     .get_signed_header_from_number(target_block_number)
-        //     .await;
-
-        // let target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
-        //     &target_block_validator_set,
-        //     &target_signed_header,
-        // );
     }
 }
