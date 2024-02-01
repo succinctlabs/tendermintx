@@ -206,7 +206,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             is_precommit,
             is_round_height_valid,
         ]);
-        self.assert_is_equal(is_valid_message, *signed);
+        self.assert_is_equal(*signed, is_valid_message);
     }
 
     fn verify_hash_in_message(
