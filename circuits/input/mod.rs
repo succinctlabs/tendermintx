@@ -510,7 +510,11 @@ impl InputDataFetcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use plonky2x::prelude::GoldilocksField;
     use subtle_encoding::hex;
+
+    use crate::consts::VALIDATOR_SET_SIZE_MAX;
+    use crate::input::conversion::get_validator_data_from_block;
 
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -521,5 +525,58 @@ pub(crate) mod tests {
             "Header: {:?}",
             String::from_utf8(hex::encode(signed_header.header.hash()))
         );
+    }
+
+    type F = GoldilocksField;
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_get_signed_vote() {
+        let mut data_fetcher = super::InputDataFetcher::default();
+        data_fetcher.mode = super::InputDataMode::Rpc;
+
+        let target_block_number = 600000;
+        let target_block_validator_set = data_fetcher
+            .get_validator_set_from_number(target_block_number)
+            .await;
+        let target_signed_header = data_fetcher
+            .get_signed_header_from_number(target_block_number)
+            .await;
+
+        let target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+            &target_block_validator_set,
+            &target_signed_header,
+        );
+    }
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_find_header_with_nonzero_round() {
+        let mut data_fetcher = super::InputDataFetcher::default();
+        data_fetcher.mode = super::InputDataMode::Rpc;
+
+        let mut target_block_number = 610000;
+        while true {
+            println!("Checking block number: {}", target_block_number);
+            let target_signed_header = data_fetcher
+                .get_signed_header_from_number(target_block_number)
+                .await;
+            if target_signed_header.commit.round.value() != 0 {
+                println!("Found header with non-zero round: {}", target_block_number);
+                break;
+            }
+            target_block_number += 1;
+        }
+        // let target_block_validator_set = data_fetcher
+        //     .get_validator_set_from_number(target_block_number)
+        //     .await;
+        // let target_signed_header = data_fetcher
+        //     .get_signed_header_from_number(target_block_number)
+        //     .await;
+
+        // let target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+        //     &target_block_validator_set,
+        //     &target_signed_header,
+        // );
     }
 }
