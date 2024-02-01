@@ -75,10 +75,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         signed: &BoolVariable,
         round: &U64Variable,
     ) {
+        // The protobuf encoding of the signed message of the validator follows the spec here:
+        // https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
+
         // If signed, (a)
         // - enabled (b)
         // - message includes the header hash (c)
-        // - message is a Precommit message (d)
+        // - MsgType is a Precommit message (d)
         // - height of the target_header matches the height in the message (e)
         // - if round is non-zero, specified round matches message (all validators have same round) (f)
         // Verify a == a * b * c * d * e * f
@@ -88,18 +91,25 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
 
         // Verify every signed validator's message is a Precommit message (not a Prevote).
         // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
-        // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
+        // Spec: https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/types.pb.go#L35-L44
+        const TYPE_START_IDX: usize = 1;
         let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
-        let is_precommit = self.is_equal(expected_encoded_vote, message[1..3].to_vec().into());
+        let is_precommit = self.is_equal(
+            expected_encoded_vote,
+            message[TYPE_START_IDX..TYPE_START_IDX + 2].to_vec().into(),
+        );
 
         // Verify the height of the target_header matches the height in the message. The height
         // starts at index 4 in the signed validator's message, and is represented as an sfixed64.
         let mut encoded_height = height.encode(self);
         // Reverse the byte order to match sfixed64's LE order.
         encoded_height.reverse();
+        const HEIGHT_START_IDX: usize = 4;
         let is_commit_height_valid = self.is_equal(
             ArrayVariable::<ByteVariable, 8>::from(encoded_height),
-            ArrayVariable::<ByteVariable, 8>::from(message[4..12].to_vec()),
+            ArrayVariable::<ByteVariable, 8>::from(
+                message[HEIGHT_START_IDX..HEIGHT_START_IDX + 8].to_vec(),
+            ),
         );
 
         // If round is non-zero, verify the specified round matches the message.
@@ -109,9 +119,12 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let mut encoded_round = round.encode(self);
         // Reverse the byte order to match sfixed64's LE order.
         encoded_round.reverse();
+        const ROUND_START_IDX: usize = 13;
         let is_commit_round_valid = self.is_equal(
             ArrayVariable::<ByteVariable, 8>::from(encoded_round),
-            ArrayVariable::<ByteVariable, 8>::from(message[13..21].to_vec()),
+            ArrayVariable::<ByteVariable, 8>::from(
+                message[ROUND_START_IDX..ROUND_START_IDX + 8].to_vec(),
+            ),
         );
         // If round is zero, skip this check.
         let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
