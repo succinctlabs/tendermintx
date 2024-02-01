@@ -2,7 +2,7 @@ use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::EDDSASignatureVariable;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ByteVariable, U32Variable};
+use plonky2x::frontend::vars::{ByteVariable, EvmVariable, U32Variable};
 use plonky2x::prelude::{
     ArrayVariable, BoolVariable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable,
     Field, PlonkParameters, Variable,
@@ -18,6 +18,17 @@ use crate::consts::{
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
+    /// Verify each validator's signature contains the correct data.
+    fn verify_validator_signature_data(
+        &mut self,
+        header: &TendermintHashVariable,
+        height: &U64Variable,
+        message: &ValidatorMessageVariable,
+        is_enabled: &BoolVariable,
+        signed: &BoolVariable,
+        round_present: &BoolVariable,
+    );
+
     /// Extract the header hash from the signed message from a validator. The location of the
     /// header hash in the signed message depends on whether the round is 0 for the message.
     fn verify_hash_in_message(
@@ -60,6 +71,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        height: &U64Variable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -112,6 +124,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        next_block_number: &U64Variable,
         prev_header: &TendermintHashVariable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -148,6 +161,54 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
+    fn verify_validator_signature_data(
+        &mut self,
+        header: &TendermintHashVariable,
+        height: &U64Variable,
+        message: &ValidatorMessageVariable,
+        is_enabled: &BoolVariable,
+        signed: &BoolVariable,
+        round_present: &BoolVariable,
+    ) {
+        // If signed, (a)
+        // - enabled (b)
+        // - message includes the header hash (c)
+        // - message is a Precommit message (d)
+        // - height of the target_header matches the height in the message (e)
+        // - round of the target_header matches the round in the message (all validators have same round) (f)
+        // Verify a == a * b * c * d * e * f
+
+        // Verify every signed validator's message includes the header hash.
+        let hash_in_message = self.verify_hash_in_message(message, *header, *round_present);
+
+        // Verify every signed validator's message is a Precommit message (not a Prevote).
+        // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
+        // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
+        let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
+        let is_precommit = self.is_equal(expected_encoded_vote, message[1..3].to_vec().into());
+
+        // Verify the height of the target_header matches the height in the message.
+        // The height starts at index 4 in the signed validator's message, and is represented as an
+        // sfixed64.
+        let mut encoded_height = height.encode(self);
+        // Reverse the byte order to match sfixed64's LE order.
+        encoded_height.reverse();
+
+        let encoded_height_array: ArrayVariable<ByteVariable, 8> = encoded_height.into();
+        let encoded_height_in_message: ArrayVariable<ByteVariable, 8> =
+            message[4..12].to_vec().into();
+        let is_round_height_valid = self.is_equal(encoded_height_array, encoded_height_in_message);
+
+        let is_valid_message = self.get_array_and(&[
+            *signed,
+            *is_enabled,
+            hash_in_message,
+            is_precommit,
+            is_round_height_valid,
+        ]);
+        self.assert_is_equal(is_valid_message, *signed);
+    }
+
     fn verify_hash_in_message(
         &mut self,
         message: &ValidatorMessageVariable,
@@ -268,6 +329,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        height: &U64Variable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
         round_present: &BoolVariable,
@@ -292,7 +354,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             ArrayVariable::<
                 BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>,
                 VALIDATOR_SET_SIZE_MAX,
-            >::new(messages),
+            >::new(messages.clone()),
             ArrayVariable::<EDDSASignatureVariable, VALIDATOR_SET_SIZE_MAX>::new(signatures),
             ArrayVariable::<CompressedEdwardsYVariable, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
         );
@@ -345,26 +407,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             let not_at_end = self.not(at_end);
             is_enabled = self.and(not_at_end, is_enabled);
 
-            // If the validator is signed, assert it is enabled.
-            let enabled_and_signed = self.and(is_enabled, validators[i].signed);
-            self.assert_is_equal(validators[i].signed, enabled_and_signed);
-
-            // Verify every signed validator's message includes the header hash.
-            let hash_in_message =
-                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
-            let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
-            self.assert_is_equal(hash_in_message_and_signed, signed[i]);
-
-            // Verify every signed validator's message is a Precommit message (not a Prevote).
-            // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
-            // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
-            let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
-            let is_precommit = self.is_equal(
-                expected_encoded_vote,
-                validators[i].message[1..3].to_vec().into(),
+            self.verify_validator_signature_data(
+                header,
+                height,
+                &messages[i],
+                &is_enabled,
+                &signed[i],
+                round_present,
             );
-            let is_precommit_and_signed = self.and(is_precommit, validators[i].signed);
-            self.assert_is_equal(is_precommit_and_signed, signed[i]);
         }
 
         // Verify the chain ID against the header.
@@ -518,6 +568,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        next_block_number: &U64Variable,
         prev_header: &TendermintHashVariable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
@@ -531,6 +582,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             header,
+            next_block_number,
             chain_id_proof,
             validator_hash_proof,
             round_present,
@@ -586,6 +638,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             header,
+            target_block,
             chain_id_proof,
             validator_hash_proof,
             round_present,

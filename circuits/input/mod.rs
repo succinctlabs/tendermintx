@@ -556,7 +556,7 @@ pub(crate) mod tests {
         data_fetcher.mode = super::InputDataMode::Rpc;
 
         let mut target_block_number = 610000;
-        while true {
+        loop {
             println!("Checking block number: {}", target_block_number);
             let target_signed_header = data_fetcher
                 .get_signed_header_from_number(target_block_number)
