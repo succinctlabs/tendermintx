@@ -34,14 +34,6 @@ fn get_signed_message_data<F: RichField>(
     let signed_vote =
         SignedVote::from_vote(vote.clone(), chain_id.clone()).expect("missing signature");
     let mut padded_signed_message = signed_vote.sign_bytes();
-    // println!("signed message length: {:?}", padded_signed_message.len());
-    // println!("padded_signed_message: {:?}", padded_signed_message);
-    // println!("height: {:?}", vote.clone().height);
-    // println!(
-    //     "encoded height: {:?}",
-    //     vote.clone().height.encode_length_delimited_vec()
-    // );
-    // println!("round: {:?}", vote.round.value());
     let msg_length = padded_signed_message.len();
 
     padded_signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
