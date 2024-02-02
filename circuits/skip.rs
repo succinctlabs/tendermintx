@@ -18,6 +18,7 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -28,6 +29,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -58,6 +60,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
 
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
+            skip_max,
+            &trusted_block,
             &target_block,
             &target_block_validators,
             nb_validators,
@@ -144,6 +148,7 @@ impl<
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
+            C::SKIP_MAX,
             trusted_block,
             trusted_header_hash,
             target_block,

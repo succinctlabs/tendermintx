@@ -114,6 +114,16 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
     );
 
+    /// Verify trusted_block + SKIP_MAX > target_block > trusted_block + 1. The target block must be
+    /// greater than & non-adjacent to the trusted_block, and must be less than SKIP_MAX blocks
+    /// away from the trusted_block.
+    fn verify_skip_distance(
+        &mut self,
+        skip_max: usize,
+        trusted_block: &U64Variable,
+        target_block: &U64Variable,
+    );
+
     /// Verify a Tendermint block that is non-sequential with the trusted block. At least 1/3 of the
     /// stake on the new block must be from validators on the trusted block to skip intermediate
     /// verification. Additionally, the new block must have 2/3 of the validators signed on it.
@@ -123,6 +133,8 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        skip_max: usize,
+        trusted_block: &U64Variable,
         target_block: &U64Variable,
         target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         target_header_nb_enabled_validators: Variable,
@@ -521,9 +533,28 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.assert_is_equal(*next_block, next_header_height_proof.height);
     }
 
+    fn verify_skip_distance(
+        &mut self,
+        skip_max: usize,
+        trusted_block: &U64Variable,
+        target_block: &U64Variable,
+    ) {
+        let one = self.one();
+        let trusted_block_plus_one = self.add(*trusted_block, one);
+        // Verify target block > trusted block.
+        self.gt(*target_block, trusted_block_plus_one);
+
+        let skip_max_var = self.constant::<U64Variable>(skip_max as u64);
+        let max_block = self.add(*trusted_block, skip_max_var);
+        // Verify target block <= trusted block + skip_max.
+        self.lte(*target_block, max_block);
+    }
+
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        skip_max: usize,
+        trusted_block: &U64Variable,
         target_block: &U64Variable,
         target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         target_header_nb_enabled_validators: Variable,
@@ -540,6 +571,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         >,
         trusted_nb_enabled_validators: Variable,
     ) {
+        // Verify the target block is non-sequential with the trusted block and within maximum
+        // skip distance.
+        self.verify_skip_distance(skip_max, trusted_block, target_block);
+
         // Verify the validators from the target block marked present_on_trusted_header
         // are present on the trusted header, and comprise at least 1/3 of the total voting power
         // on the target block.
