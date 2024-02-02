@@ -16,6 +16,9 @@ use crate::variables::{
 };
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
+    /// Verify that the round is non-negative.
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>);
+
     /// Verify each validator's signature contains the correct data.
     fn verify_validator_signature_data(
         &mut self,
@@ -66,6 +69,13 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>) {
+        let zero: BoolVariable = self._false();
+        // In LE, the most significant byte is the rightmost byte. In BE bit order, the MSB is the
+        // leftmost bit. We want to check if the MSB (sign bit) of the most significant byte is 0.
+        self.assert_is_equal(le_encoded_round[7].as_be_bits()[0], zero);
+    }
+
     fn verify_validator_signature_data(
         &mut self,
         header: &TendermintHashVariable,
@@ -119,13 +129,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let mut encoded_round = round.encode(self);
         // Reverse the byte order to match sfixed64's LE order.
         encoded_round.reverse();
+        let le_encoded_round = ArrayVariable::<ByteVariable, 8>::from(encoded_round);
         const ROUND_START_IDX: usize = 13;
         let is_commit_round_valid = self.is_equal(
-            ArrayVariable::<ByteVariable, 8>::from(encoded_round),
+            le_encoded_round.clone(),
             ArrayVariable::<ByteVariable, 8>::from(
                 message[ROUND_START_IDX..ROUND_START_IDX + 8].to_vec(),
             ),
         );
+        self.verify_non_negative_round(le_encoded_round);
         // If round is zero, skip this check.
         let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
 
