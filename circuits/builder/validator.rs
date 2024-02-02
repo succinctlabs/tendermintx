@@ -16,6 +16,19 @@ use crate::variables::{
 };
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
+    /// Verify the round is non-negative. The round is encoded as a little-endian 64-bit signed
+    /// integer.
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>);
+
+    /// The protobuf encoding of the signed message of the validator follows the spec here:
+    /// https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
+    /// If the validator is marked as signed, (a)
+    /// - validator must be enabled (b)
+    /// - validator message includes the header hash (c)
+    /// - validator message MsgType is a Precommit message (d)
+    /// - height of the target_header matches the height in the validator message (e)
+    /// - if round is non-zero, specified round matches message (all validators have same round) (f)
+    /// Verify a == a * b * c * d * e * f
     fn verify_validator_signature_data(
         &mut self,
         header: &TendermintHashVariable,
@@ -26,6 +39,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         round: &U64Variable,
     );
 
+    /// Verify the header hash in the signed message matches the expected header hash.
     fn verify_hash_in_message(
         &mut self,
         message: &ValidatorMessageVariable,
@@ -63,6 +77,13 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>) {
+        let zero: BoolVariable = self._false();
+        // In LE, the most significant byte is the rightmost byte. In BE bit order, the MSB is the
+        // leftmost bit. We want to check if the MSB (sign bit) of the most significant byte is 0.
+        self.assert_is_equal(le_encoded_round[7].as_be_bits()[0], zero);
+    }
+
     fn verify_validator_signature_data(
         &mut self,
         header: &TendermintHashVariable,
@@ -72,17 +93,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         signed: &BoolVariable,
         round: &U64Variable,
     ) {
-        // The protobuf encoding of the signed message of the validator follows the spec here:
-        // https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
-
-        // If signed, (a)
-        // - enabled (b)
-        // - message includes the header hash (c)
-        // - MsgType is a Precommit message (d)
-        // - height of the target_header matches the height in the message (e)
-        // - if round is non-zero, specified round matches message (all validators have same round) (f)
-        // Verify a == a * b * c * d * e * f
-
         // Verify every signed validator's message includes the header hash.
         let hash_in_message = self.verify_hash_in_message(message, *header, *round);
 
@@ -116,15 +126,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let mut encoded_round = round.encode(self);
         // Reverse the byte order to match sfixed64's LE order.
         encoded_round.reverse();
+
+        let encoded_round_le = ArrayVariable::<ByteVariable, 8>::from(encoded_round);
         const ROUND_START_IDX: usize = 13;
         let is_commit_round_valid = self.is_equal(
-            ArrayVariable::<ByteVariable, 8>::from(encoded_round),
+            encoded_round_le.clone(),
             ArrayVariable::<ByteVariable, 8>::from(
                 message[ROUND_START_IDX..ROUND_START_IDX + 8].to_vec(),
             ),
         );
         // If round is zero, skip this check.
         let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
+        // Assert the round is non-negative.
+        self.verify_non_negative_round(encoded_round_le);
 
         let is_valid_message = self.combine_with_and(&[
             *signed,
