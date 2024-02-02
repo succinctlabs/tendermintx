@@ -100,17 +100,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
-        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        nb_enabled_validators: Variable,
-        next_header: &TendermintHashVariable,
-        next_block: &U64Variable,
-        next_header_chain_id_proof: &ChainIdProofVariable,
-        next_header_height_proof: &HeightProofVariable,
-        next_header_validator_hash_proof: &HashInclusionProofVariable,
-        next_header_last_block_id_proof: &BlockIDInclusionProofVariable,
-        next_header_round: &U64Variable,
-        prev_header: &TendermintHashVariable,
-        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+        step: VerifyStepVariable<VALIDATOR_SET_SIZE_MAX>,
     );
 
     /// Verify trusted_block + SKIP_MAX > target_block > trusted_block + 1. The target block must be
@@ -493,53 +483,41 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
-        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        nb_enabled_validators: Variable,
-        next_header: &TendermintHashVariable,
-        next_block: &U64Variable,
-        next_header_chain_id_proof: &ChainIdProofVariable,
-        next_header_height_proof: &HeightProofVariable,
-        next_header_validator_hash_proof: &HashInclusionProofVariable,
-        next_header_last_block_id_proof: &BlockIDInclusionProofVariable,
-        next_header_round: &U64Variable,
-        prev_header: &TendermintHashVariable,
-        prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
+        step: VerifyStepVariable<VALIDATOR_SET_SIZE_MAX>,
     ) {
         // Verify the new Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
             expected_chain_id_bytes,
-            validators,
-            nb_enabled_validators,
-            next_header,
-            next_header_chain_id_proof,
-            next_header_validator_hash_proof,
-            next_header_round,
+            &step.next_block_validators,
+            step.next_block_nb_validators,
+            &step.next_header,
+            &step.next_header_chain_id_proof,
+            &step.next_header_validators_hash_proof,
+            &step.next_block_round,
         );
 
         // Verify the previous header hash in the new header matches the previous header.
         self.verify_prev_header_in_header(
-            next_header,
-            *prev_header,
-            next_header_last_block_id_proof,
+            &step.next_header,
+            step.prev_header,
+            &step.next_header_last_block_id_proof,
         );
 
         // Verify the next validators hash in the previous block matches the new validators hash.
         let new_validators_hash: Bytes32Variable =
-            next_header_validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+            step.next_header_validators_hash_proof.leaf[2..2 + HASH_SIZE].into();
         self.verify_prev_header_next_validators_hash(
             new_validators_hash,
-            prev_header,
-            prev_header_next_validators_hash_proof,
+            &step.prev_header,
+            &step.prev_header_next_validators_hash_proof,
         );
 
         // Verify the next block's height is correct.
         self.verify_block_height(
-            *next_header,
-            &next_header_height_proof.proof,
-            &next_header_height_proof.height,
-            next_header_height_proof.enc_height_byte_length,
+            step.next_header,
+            step.next_block,
+            step.next_header_height_proof.clone(),
         );
-        self.assert_is_equal(*next_block, next_header_height_proof.height);
     }
 
     fn verify_skip_distance(
@@ -610,11 +588,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // Verify the target block's height is correct.
         self.verify_block_height(
             *target_header,
-            &target_header_height_proof.proof,
-            &target_header_height_proof.height,
-            target_header_height_proof.enc_height_byte_length,
+            *target_block,
+            target_header_height_proof.clone(),
         );
-        self.assert_is_equal(*target_block, target_header_height_proof.height);
     }
 }
 

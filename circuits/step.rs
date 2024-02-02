@@ -53,19 +53,23 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let one = self.one();
         let next_block_number = self.add(prev_block_number, one);
 
+        let step_variable = VerifyStepVariable::<MAX_VALIDATOR_SET_SIZE> {
+            next_header,
+            next_block: next_block_number,
+            next_block_validators,
+            next_block_nb_validators: nb_validators,
+            next_block_round: round,
+            next_header_chain_id_proof: next_block_chain_id_proof,
+            next_header_height_proof: next_header_block_height_proof,
+            next_header_validators_hash_proof: next_block_validators_hash_proof,
+            next_header_last_block_id_proof: next_block_last_block_id_proof,
+            prev_header: prev_header_hash,
+            prev_header_next_validators_hash_proof: prev_block_next_validators_hash_proof,
+        };
+
         self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
-            &next_block_validators,
-            nb_validators,
-            &next_header,
-            &next_block_number,
-            &next_block_chain_id_proof,
-            &next_header_block_height_proof,
-            &next_block_validators_hash_proof,
-            &next_block_last_block_id_proof,
-            &round,
-            &prev_header_hash,
-            &prev_block_next_validators_hash_proof,
+            step_variable,
         );
         next_header
     }
