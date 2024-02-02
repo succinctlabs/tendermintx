@@ -116,8 +116,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         let mut res = [self.zero(); VARINT_BYTES_LENGTH_MAX];
 
         // If the index of a septet is elss than the last non-zero septet, set the most significant
-        // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, still
-        // copy the bit but the set the most significant bit to zero.
+        // bit of the byte to 1 and copy the septet bits into the lower 7 bits. Otherwise, copy the
+        // bit but the set the most significant bit to zero.
         for i in 0..VARINT_BYTES_LENGTH_MAX {
             // If the index is less than the last non-zero septet index, `diff` will be in
             // [0, VARINT_BYTES_LENGTH_MAX).
