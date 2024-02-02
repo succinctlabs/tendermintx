@@ -18,15 +18,6 @@ use crate::consts::{
 use crate::variables::*;
 
 pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
-    /// Extract the header hash from the signed message from a validator. The location of the
-    /// header hash in the signed message depends on whether the round is 0 for the message.
-    fn verify_hash_in_message(
-        &mut self,
-        message: &ValidatorMessageVariable,
-        expected_header_hash: Bytes32Variable,
-        round_present_in_message: BoolVariable,
-    ) -> BoolVariable;
-
     /// Verify the header hash of the previous block matches the new block's parent hash.
     fn verify_prev_header_in_header(
         &mut self,
@@ -60,9 +51,10 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        height: &U64Variable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
-        round_present: &BoolVariable,
+        round: &U64Variable,
     );
 
     /// Compute the validators hash from the necessary fields. If a validator is not enabled, then
@@ -117,7 +109,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         next_header_height_proof: &HeightProofVariable,
         next_header_validator_hash_proof: &HashInclusionProofVariable,
         next_header_last_block_id_proof: &BlockIDInclusionProofVariable,
-        next_header_round_present: &BoolVariable,
+        next_block_round: &U64Variable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
     );
@@ -138,7 +130,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         chain_id_proof: &ChainIdProofVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
-        round_present: &BoolVariable,
+        round: &U64Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
@@ -150,33 +142,6 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBuilder<L, D> {
-    fn verify_hash_in_message(
-        &mut self,
-        message: &ValidatorMessageVariable,
-        expected_header_hash: Bytes32Variable,
-        round_present_in_message: BoolVariable,
-    ) -> BoolVariable {
-        // If the round is missing, the hash starts at index 16.
-        const MISSING_ROUND_START_IDX: usize = 16;
-        let round_missing_header: Bytes32Variable =
-            message[MISSING_ROUND_START_IDX..MISSING_ROUND_START_IDX + HASH_SIZE].into();
-
-        // If the round is present, the hash starts at index 25.
-        const INCLUDING_ROUND_START_IDX: usize = 25;
-        let round_present_header: Bytes32Variable =
-            message[INCLUDING_ROUND_START_IDX..INCLUDING_ROUND_START_IDX + HASH_SIZE].into();
-
-        // Select the correct header hash based on whether the round is present in the message.
-        let computed_header = self.select(
-            round_present_in_message,
-            round_present_header,
-            round_missing_header,
-        );
-
-        // Assert the computed header hash matches the expected header hash.
-        self.is_equal(computed_header, expected_header_hash)
-    }
-
     fn verify_prev_header_in_header(
         &mut self,
         header: &TendermintHashVariable,
@@ -270,9 +235,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
         nb_enabled_validators: Variable,
         header: &TendermintHashVariable,
+        height: &U64Variable,
         chain_id_proof: &ChainIdProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
-        round_present: &BoolVariable,
+        round: &U64Variable,
     ) {
         // Extract the necessary data for verifying the validators' signatures.
         let (mut signed, mut messages, mut message_byte_lengths, mut signatures, mut pubkeys) =
@@ -294,7 +260,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             ArrayVariable::<
                 BytesVariable<VALIDATOR_MESSAGE_BYTES_LENGTH_MAX>,
                 VALIDATOR_SET_SIZE_MAX,
-            >::new(messages),
+            >::new(messages.clone()),
             ArrayVariable::<EDDSASignatureVariable, VALIDATOR_SET_SIZE_MAX>::new(signatures),
             ArrayVariable::<CompressedEdwardsYVariable, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
         );
@@ -347,26 +313,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             let not_at_end = self.not(at_end);
             is_enabled = self.and(not_at_end, is_enabled);
 
-            // If the validator is signed, assert it is enabled.
-            let enabled_and_signed = self.and(is_enabled, validators[i].signed);
-            self.assert_is_equal(validators[i].signed, enabled_and_signed);
-
-            // Verify every signed validator's message includes the header hash.
-            let hash_in_message =
-                self.verify_hash_in_message(&validators[i].message, *header, *round_present);
-            let hash_in_message_and_signed = self.and(hash_in_message, validators[i].signed);
-            self.assert_is_equal(hash_in_message_and_signed, signed[i]);
-
-            // Verify every signed validator's message is a Precommit message (not a Prevote).
-            // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
-            // https://github.com/informalsystems/tendermint-rs/blob/2499bad06d7709cc0d5074a0589b7bbfa00133fe/tendermint/src/vote.rs#L341-L347
-            let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
-            let is_precommit = self.is_equal(
-                expected_encoded_vote,
-                validators[i].message[1..3].to_vec().into(),
+            self.verify_validator_signature_data(
+                header,
+                height,
+                &messages[i],
+                &is_enabled,
+                &signed[i],
+                round,
             );
-            let is_precommit_and_signed = self.and(is_precommit, validators[i].signed);
-            self.assert_is_equal(is_precommit_and_signed, signed[i]);
         }
 
         // Verify the chain ID against the header.
@@ -525,7 +479,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         next_header_height_proof: &HeightProofVariable,
         next_header_validator_hash_proof: &HashInclusionProofVariable,
         next_header_last_block_id_proof: &BlockIDInclusionProofVariable,
-        next_header_round_present: &BoolVariable,
+        next_block_round: &U64Variable,
         prev_header: &TendermintHashVariable,
         prev_header_next_validators_hash_proof: &HashInclusionProofVariable,
     ) {
@@ -535,9 +489,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             next_header,
+            next_block,
             next_header_chain_id_proof,
             next_header_validator_hash_proof,
-            next_header_round_present,
+            next_block_round,
         );
 
         // Verify the previous header hash in the new header matches the previous header.
@@ -576,7 +531,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         chain_id_proof: &ChainIdProofVariable,
         header_height_proof: &HeightProofVariable,
         validator_hash_proof: &HashInclusionProofVariable,
-        round_present: &BoolVariable,
+        round: &U64Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
@@ -603,9 +558,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             validators,
             nb_enabled_validators,
             header,
+            target_block,
             chain_id_proof,
             validator_hash_proof,
-            round_present,
+            round,
         );
 
         // Verify the target block's height is correct.
@@ -644,10 +600,9 @@ pub(crate) mod tests {
         let mut builder = DefaultBuilder::new();
         let message = builder.read::<ValidatorMessageVariable>();
         let header_hash = builder.read::<TendermintHashVariable>();
-        let round_present_in_message = builder.read::<BoolVariable>();
+        let round = builder.read::<U64Variable>();
 
-        let verified =
-            builder.verify_hash_in_message(&message, header_hash, round_present_in_message);
+        let verified = builder.verify_hash_in_message(&message, header_hash, round);
 
         builder.write(verified);
         let circuit = builder.build();
@@ -661,9 +616,11 @@ pub(crate) mod tests {
         let mut input = circuit.input();
         input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
         input.write::<TendermintHashVariable>(header_hash_h256);
-        input.write::<BoolVariable>(false);
+        input.write::<U64Variable>(0u64);
         let (_, mut output) = circuit.prove(&input);
         let verified = output.read::<BoolVariable>();
         assert!(verified);
     }
+
+    // TODO: Add test for verifying validator signatures from a commit that has round != 0.
 }

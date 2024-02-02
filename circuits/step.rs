@@ -5,9 +5,7 @@ use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
 use plonky2x::frontend::vars::{ValueStream, Variable, VariableStream};
-use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, Field, PlonkParameters,
-};
+use plonky2x::prelude::{ArrayVariable, Bytes32Variable, CircuitBuilder, Field, PlonkParameters};
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
@@ -39,7 +37,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
         let next_header = output_stream.read::<Bytes32Variable>(self);
-        let round_present = output_stream.read::<BoolVariable>(self);
+        let round = output_stream.read::<U64Variable>(self);
         let next_block_validators =
             output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let nb_validators = output_stream.read::<Variable>(self);
@@ -53,19 +51,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
             output_stream.read::<HashInclusionProofVariable>(self);
 
         let one = self.one();
-        let next_block_number = self.add(prev_block_number, one);
+        let next_block = self.add(prev_block_number, one);
 
         self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
             &next_block_validators,
             nb_validators,
             &next_header,
-            &next_block_number,
+            &next_block,
             &next_block_chain_id_proof,
             &next_header_block_height_proof,
             &next_block_validators_hash_proof,
             &next_block_last_block_id_proof,
-            &round_present,
+            &round,
             &prev_header_hash,
             &prev_block_next_validators_hash_proof,
         );
@@ -96,7 +94,7 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             .await;
 
         output_stream.write_value::<Bytes32Variable>(result.next_header.into());
-        output_stream.write_value::<BoolVariable>(result.round_present); // round_present
+        output_stream.write_value::<U64Variable>(result.round as u64); // round
         output_stream.write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(
             result.next_block_validators,
         );
