@@ -6,9 +6,7 @@ use plonky2x::prelude::{
     CircuitVariable, Field, PlonkParameters, Variable,
 };
 
-use crate::consts::{
-    BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, PROTOBUF_VARINT_SIZE_BYTES, VARINT_BYTES_LENGTH_MAX,
-};
+use crate::consts::{BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, VARINT_BYTES_LENGTH_MAX};
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     /// Get the path to a leaf in the Tendermint header.
@@ -181,7 +179,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         // Extend encoded_height to 64 bytes. Variable SHA256 requires the input length in bytes to
         // be equal to the specified MAX_NUM_CHUNKS * 64.
         let mut encoded_height_extended = encoded_height.0.to_vec();
-        for _i in PROTOBUF_VARINT_SIZE_BYTES + 1..64 {
+        for _i in encoded_height_extended.len()..64 {
             encoded_height_extended.push(self.constant::<ByteVariable>(0u8));
         }
 
