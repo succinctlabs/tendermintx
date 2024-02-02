@@ -106,8 +106,8 @@ pub struct VerifySkipVariable<const MAX_VALIDATOR_SET_SIZE: usize> {
     pub target_header_validator_hash_proof: HashInclusionProofVariable,
     pub trusted_header: TendermintHashVariable,
     pub trusted_block: U64Variable,
-    pub trusted_nb_validators: Variable,
-    pub trusted_headervalidator_hash_proof: HashInclusionProofVariable,
+    pub trusted_block_nb_validators: Variable,
+    pub trusted_header_validator_hash_proof: HashInclusionProofVariable,
     pub trusted_header_validator_hash_fields:
         ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>,
 }

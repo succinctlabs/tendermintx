@@ -51,29 +51,33 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
         let target_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
-        let trusted_header = output_stream.read::<Bytes32Variable>(self);
+        let _ = output_stream.read::<Bytes32Variable>(self);
         let trusted_header_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
         let trusted_header_validators_hash_fields = output_stream
             .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
         let trusted_nb_validators = output_stream.read::<Variable>(self);
 
+        let skip_variable = VerifySkipVariable::<MAX_VALIDATOR_SET_SIZE> {
+            target_header,
+            target_block,
+            target_block_validators,
+            target_block_nb_validators: nb_validators,
+            target_block_round: round,
+            target_header_chain_id_proof,
+            target_header_height_proof: target_header_block_height_proof,
+            target_header_validator_hash_proof: target_header_validators_hash_proof,
+            trusted_header: trusted_header_hash,
+            trusted_block,
+            trusted_block_nb_validators: trusted_nb_validators,
+            trusted_header_validator_hash_proof: trusted_header_validators_hash_proof,
+            trusted_header_validator_hash_fields: trusted_header_validators_hash_fields,
+        };
+
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
             skip_max,
-            &trusted_block,
-            &target_block,
-            &target_block_validators,
-            nb_validators,
-            &target_header,
-            &target_header_chain_id_proof,
-            &target_header_block_height_proof,
-            &target_header_validators_hash_proof,
-            &round,
-            trusted_header,
-            &trusted_header_validators_hash_proof,
-            &trusted_header_validators_hash_fields,
-            trusted_nb_validators,
+            skip_variable,
         );
         target_header
     }

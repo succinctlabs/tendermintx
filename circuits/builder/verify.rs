@@ -123,22 +123,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         expected_chain_id_bytes: &[u8],
         skip_max: usize,
-        trusted_block: &U64Variable,
-        target_block: &U64Variable,
-        target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        target_header_nb_enabled_validators: Variable,
-        target_header: &TendermintHashVariable,
-        target_header_chain_id_proof: &ChainIdProofVariable,
-        target_header_height_proof: &HeightProofVariable,
-        target_header_validator_hash_proof: &HashInclusionProofVariable,
-        target_header_round: &U64Variable,
-        trusted_header: TendermintHashVariable,
-        trusted_validator_hash_proof: &HashInclusionProofVariable,
-        trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable,
-            VALIDATOR_SET_SIZE_MAX,
-        >,
-        trusted_nb_enabled_validators: Variable,
+        skip: VerifySkipVariable<VALIDATOR_SET_SIZE_MAX>,
     );
 }
 
@@ -541,55 +526,40 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         &mut self,
         expected_chain_id_bytes: &[u8],
         skip_max: usize,
-        trusted_block: &U64Variable,
-        target_block: &U64Variable,
-        target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        target_header_nb_enabled_validators: Variable,
-        target_header: &TendermintHashVariable,
-        target_header_chain_id_proof: &ChainIdProofVariable,
-        target_header_height_proof: &HeightProofVariable,
-        target_header_validator_hash_proof: &HashInclusionProofVariable,
-        target_header_round: &U64Variable,
-        trusted_header: TendermintHashVariable,
-        trusted_validator_hash_proof: &HashInclusionProofVariable,
-        trusted_validator_hash_fields: &ArrayVariable<
-            ValidatorHashFieldVariable,
-            VALIDATOR_SET_SIZE_MAX,
-        >,
-        trusted_nb_enabled_validators: Variable,
+        skip: VerifySkipVariable<VALIDATOR_SET_SIZE_MAX>,
     ) {
         // Verify the target block is non-sequential with the trusted block and within maximum
         // skip distance.
-        self.verify_skip_distance(skip_max, trusted_block, target_block);
+        self.verify_skip_distance(skip_max, &skip.trusted_block, &skip.target_block);
 
         // Verify the validators from the target block marked present_on_trusted_header
         // are present on the trusted header, and comprise at least 1/3 of the total voting power
         // on the target block.
         self.verify_trusted_validators(
-            target_validators,
-            target_header_nb_enabled_validators,
-            trusted_header,
-            trusted_validator_hash_proof,
-            trusted_validator_hash_fields,
-            trusted_nb_enabled_validators,
+            &skip.target_block_validators,
+            skip.target_block_nb_validators,
+            skip.trusted_header,
+            &skip.trusted_header_validator_hash_proof,
+            &skip.trusted_header_validator_hash_fields,
+            skip.trusted_block_nb_validators,
         );
 
         // Verify the target Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
             expected_chain_id_bytes,
-            target_validators,
-            target_header_nb_enabled_validators,
-            target_header,
-            target_header_chain_id_proof,
-            target_header_validator_hash_proof,
-            target_header_round,
+            &skip.target_block_validators,
+            skip.target_block_nb_validators,
+            &skip.target_header,
+            &skip.target_header_chain_id_proof,
+            &skip.target_header_validator_hash_proof,
+            &skip.target_block_round,
         );
 
         // Verify the target block's height is correct.
         self.verify_block_height(
-            *target_header,
-            *target_block,
-            target_header_height_proof.clone(),
+            skip.target_header,
+            skip.target_block,
+            skip.target_header_height_proof.clone(),
         );
     }
 }
