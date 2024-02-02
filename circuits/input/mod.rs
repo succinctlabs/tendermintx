@@ -45,7 +45,7 @@ pub struct InputDataFetcher {
 
 pub struct StepInputs<F: RichField> {
     pub next_header: [u8; 32],
-    pub round_present: bool,
+    pub round: usize,
     pub next_block_validators: Vec<ValidatorType<F>>,
     pub nb_validators: usize,
     pub next_block_chain_id_proof: ChainIdProofValueType<F>,
@@ -62,7 +62,7 @@ pub struct SkipInputs<F: RichField> {
     pub target_block_validators: Vec<ValidatorType<F>>, // validators
     pub nb_target_validators: usize,                    // nb_validators
     pub target_header: [u8; 32],                        // target_header
-    pub round_present: bool,                            // round_present
+    pub round: usize,                                   // round
     pub target_block_chain_id_proof: ChainIdProofValueType<F>, // target_chain_id_proof,
     pub target_block_height_proof: HeightProofValueType<F>, // target_block_height_proof,
     pub target_block_validators_hash_proof:
@@ -400,11 +400,11 @@ impl InputDataFetcher {
             NEXT_VALIDATORS_HASH_INDEX as u64,
             prev_header.next_validators_hash.encode_vec(),
         );
-        let round_present = next_block_signed_header.commit.round.value() != 0;
+        let round = next_block_signed_header.commit.round.value() as usize;
         let next_block_header = next_block_signed_header.header.hash();
         StepInputs {
             next_header: next_block_header.as_bytes().try_into().unwrap(),
-            round_present,
+            round,
             next_block_validators,
             nb_validators,
             next_block_chain_id_proof,
@@ -450,7 +450,7 @@ impl InputDataFetcher {
             .get_signed_header_from_number(target_block_number)
             .await;
         let target_block_header = target_signed_header.header.hash();
-        let round_present = target_signed_header.commit.round.value() != 0;
+        let round = target_signed_header.commit.round.value() as usize;
 
         let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
@@ -510,7 +510,7 @@ impl InputDataFetcher {
             target_block_validators,
             nb_target_validators,
             target_header: target_block_header.as_bytes().try_into().unwrap(),
-            round_present,
+            round,
             target_block_chain_id_proof,
             target_block_height_proof,
             target_block_validators_hash_proof,
