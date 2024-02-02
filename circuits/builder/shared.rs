@@ -38,7 +38,7 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Get result of AND operation for BoolVariable array.
-    fn get_array_and(&mut self, arr: &[BoolVariable]) -> BoolVariable;
+    fn combine_with_and(&mut self, arr: &[BoolVariable]) -> BoolVariable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBuilder<L, D> {
@@ -205,7 +205,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         self.assert_is_equal(computed_header, header);
     }
-    fn get_array_and(&mut self, arr: &[BoolVariable]) -> BoolVariable {
+    fn combine_with_and(&mut self, arr: &[BoolVariable]) -> BoolVariable {
         let mut res = self._true();
         for i in 0..arr.len() {
             res = self.and(res, arr[i]);

@@ -129,7 +129,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         // If round is zero, skip this check.
         let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
 
-        let is_valid_message = self.get_array_and(&[
+        let is_valid_message = self.combine_with_and(&[
             *signed,
             *is_enabled,
             hash_in_message,
