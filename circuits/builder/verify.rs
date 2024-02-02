@@ -124,13 +124,13 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         expected_chain_id_bytes: &[u8],
         target_block: &U64Variable,
-        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        nb_enabled_validators: Variable,
-        header: &TendermintHashVariable,
-        chain_id_proof: &ChainIdProofVariable,
-        header_height_proof: &HeightProofVariable,
-        validator_hash_proof: &HashInclusionProofVariable,
-        round: &U64Variable,
+        target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        target_header_nb_enabled_validators: Variable,
+        target_header: &TendermintHashVariable,
+        target_header_chain_id_proof: &ChainIdProofVariable,
+        target_header_height_proof: &HeightProofVariable,
+        target_header_validator_hash_proof: &HashInclusionProofVariable,
+        target_block_round: &U64Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
@@ -525,13 +525,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         &mut self,
         expected_chain_id_bytes: &[u8],
         target_block: &U64Variable,
-        validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
-        nb_enabled_validators: Variable,
-        header: &TendermintHashVariable,
-        chain_id_proof: &ChainIdProofVariable,
-        header_height_proof: &HeightProofVariable,
-        validator_hash_proof: &HashInclusionProofVariable,
-        round: &U64Variable,
+        target_validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
+        target_header_nb_enabled_validators: Variable,
+        target_header: &TendermintHashVariable,
+        target_header_chain_id_proof: &ChainIdProofVariable,
+        target_header_height_proof: &HeightProofVariable,
+        target_header_validator_hash_proof: &HashInclusionProofVariable,
+        target_block_round: &U64Variable,
         trusted_header: TendermintHashVariable,
         trusted_validator_hash_proof: &HashInclusionProofVariable,
         trusted_validator_hash_fields: &ArrayVariable<
@@ -544,8 +544,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // are present on the trusted header, and comprise at least 1/3 of the total voting power
         // on the target block.
         self.verify_trusted_validators(
-            validators,
-            nb_enabled_validators,
+            target_validators,
+            target_header_nb_enabled_validators,
             trusted_header,
             trusted_validator_hash_proof,
             trusted_validator_hash_fields,
@@ -555,23 +555,23 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // Verify the target Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
             expected_chain_id_bytes,
-            validators,
-            nb_enabled_validators,
-            header,
+            target_validators,
+            target_header_nb_enabled_validators,
+            target_header,
             target_block,
-            chain_id_proof,
-            validator_hash_proof,
-            round,
+            target_header_chain_id_proof,
+            target_header_validator_hash_proof,
+            target_block_round,
         );
 
         // Verify the target block's height is correct.
         self.verify_block_height(
-            *header,
-            &header_height_proof.proof,
-            &header_height_proof.height,
-            header_height_proof.enc_height_byte_length,
+            *target_header,
+            &target_header_height_proof.proof,
+            &target_header_height_proof.height,
+            target_header_height_proof.enc_height_byte_length,
         );
-        self.assert_is_equal(*target_block, header_height_proof.height);
+        self.assert_is_equal(*target_block, target_header_height_proof.height);
     }
 }
 
