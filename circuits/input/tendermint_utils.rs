@@ -1,7 +1,6 @@
 // is taken from tendermint-rs (if that is the case).
 /*
 * Mocking comet-bft proof logic in Rust
-* TODO: Upstream to tendermint-rs
 */
 
 use std::cell::RefCell;

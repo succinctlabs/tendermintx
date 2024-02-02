@@ -49,7 +49,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
         let prev_block_next_validators_hash_proof =
             output_stream.read::<HashInclusionProofVariable>(self);
 
-        // TODO: Verify the height of the next block against the next_header?
         let one = self.one();
         let next_block = self.add(prev_block_number, one);
 
