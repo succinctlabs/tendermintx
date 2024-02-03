@@ -87,9 +87,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
     ) {
         // The protobuf encoding of the signed message of the validator follows the spec here:
         // https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
-
-        // If signed, (a)
-        // - enabled (b)
+        // If the validator has signed, verify: (a)
+        // - marked as enabled (b)
         // - message includes the header hash (c)
         // - MsgType is a Precommit message (d)
         // - height of the target_header matches the height in the message (e)
