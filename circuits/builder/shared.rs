@@ -7,6 +7,7 @@ use plonky2x::prelude::{
 };
 
 use crate::consts::{BLOCK_HEIGHT_INDEX, HEADER_PROOF_DEPTH, VARINT_BYTES_LENGTH_MAX};
+use crate::variables::HeightProofVariable;
 
 pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     /// Get the path to a leaf in the Tendermint header.
@@ -30,9 +31,8 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     fn verify_block_height(
         &mut self,
         header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        height: &U64Variable,
-        encoded_height_byte_length: U32Variable,
+        height_proof: HeightProofVariable,
+        expected_height: U64Variable,
     );
 
     /// Get result of AND operation for BoolVariable array.
@@ -169,14 +169,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
     fn verify_block_height(
         &mut self,
         header: Bytes32Variable,
-        proof: &ArrayVariable<Bytes32Variable, HEADER_PROOF_DEPTH>,
-        height: &U64Variable,
-        encoded_height_byte_length: U32Variable,
+        height_proof: HeightProofVariable,
+        expected_height: U64Variable,
     ) {
         let block_height_path = self.get_path_to_leaf(BLOCK_HEIGHT_INDEX);
 
         // Marshal the block height into bytes, then encode it as a leaf.
-        let encoded_height = self.marshal_int64_varint(height);
+        let encoded_height = self.marshal_int64_varint(&height_proof.height);
         let encoded_height = self.leaf_encode_marshalled_varint(&BytesVariable(encoded_height));
 
         // Extend encoded_height to 64 bytes. Variable SHA256 requires the input length in bytes to
@@ -188,7 +187,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Add 1 to the encoded height byte length to account for the 0x00 byte.
         let one_u32 = self.constant::<U32Variable>(1);
-        let encoded_height_byte_length = self.add(encoded_height_byte_length, one_u32);
+        let encoded_height_byte_length = self.add(height_proof.enc_height_byte_length, one_u32);
 
         // Hash the encoded height.
         let leaf_hash =
@@ -196,12 +195,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
 
         // Verify the computed block height against the header.
         let computed_header = self.get_root_from_merkle_proof_hashed_leaf::<HEADER_PROOF_DEPTH>(
-            proof,
+            &height_proof.proof,
             &block_height_path,
             leaf_hash,
         );
 
         self.assert_is_equal(computed_header, header);
+
+        // Verify the block height against the expected height.
+        self.assert_is_equal(height_proof.height, expected_height);
     }
     fn combine_with_and(&mut self, arr: &[BoolVariable]) -> BoolVariable {
         let mut res = self._true();

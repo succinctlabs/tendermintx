@@ -91,3 +91,40 @@ pub struct ValidatorHashFieldVariable {
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
 }
+
+/// Inputs to verify_skip circuit.
+#[derive(Debug, Clone, CircuitVariable)]
+#[value_name(VerifySkipStruct)]
+pub struct VerifySkipVariable<const MAX_VALIDATOR_SET_SIZE: usize> {
+    pub target_header: TendermintHashVariable,
+    pub target_block: U64Variable,
+    pub target_block_validators: ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>,
+    pub target_block_nb_validators: Variable,
+    pub target_block_round: U64Variable,
+    pub target_header_chain_id_proof: ChainIdProofVariable,
+    pub target_header_height_proof: HeightProofVariable,
+    pub target_header_validator_hash_proof: HashInclusionProofVariable,
+    pub trusted_header: TendermintHashVariable,
+    pub trusted_block: U64Variable,
+    pub trusted_block_nb_validators: Variable,
+    pub trusted_header_validator_hash_proof: HashInclusionProofVariable,
+    pub trusted_header_validator_hash_fields:
+        ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>,
+}
+
+/// Inputs to verify_step circuit.
+#[derive(Debug, Clone, CircuitVariable)]
+#[value_name(VerifyStepStruct)]
+pub struct VerifyStepVariable<const MAX_VALIDATOR_SET_SIZE: usize> {
+    pub next_header: Bytes32Variable,
+    pub next_block: U64Variable,
+    pub next_block_validators: ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>,
+    pub next_block_nb_validators: Variable,
+    pub next_block_round: U64Variable,
+    pub next_header_chain_id_proof: ChainIdProofVariable,
+    pub next_header_height_proof: HeightProofVariable,
+    pub next_header_validators_hash_proof: HashInclusionProofVariable,
+    pub next_header_last_block_id_proof: BlockIDInclusionProofVariable,
+    pub prev_header: Bytes32Variable,
+    pub prev_header_next_validators_hash_proof: HashInclusionProofVariable,
+}
