@@ -19,15 +19,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// Verify that the round is non-negative.
     fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>);
 
-    /// The protobuf encoding of the signed message of the validator follows the spec here:
-    /// https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
-    /// If the validator has signed, verify: (a)
-    /// - marked as enabled (b)
-    /// - message includes the header hash (c)
-    /// - MsgType is a Precommit message (d)
-    /// - height of the target_header matches the height in the message (e)
-    /// - if round is non-zero, specified round matches message (all validators have same round) (f)
-    /// Verify a == a * b * c * d * e * f
+    /// Verify each validator's signature contains the correct data.
     fn verify_validator_signature_data(
         &mut self,
         header: &TendermintHashVariable,
@@ -93,6 +85,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         signed: &BoolVariable,
         round: &U64Variable,
     ) {
+        // The protobuf encoding of the signed message of the validator follows the spec here:
+        // https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
+        // If the validator has signed, verify: (a)
+        // - marked as enabled (b)
+        // - message includes the header hash (c)
+        // - MsgType is a Precommit message (d)
+        // - height of the target_header matches the height in the message (e)
+        // - if round is non-zero, specified round matches message (all validators have same round) (f)
+        // Verify a == a * b * c * d * e * f
+
         // Verify every signed validator's message includes the header hash.
         let hash_in_message = self.verify_hash_in_message(message, *header, *round);
 
