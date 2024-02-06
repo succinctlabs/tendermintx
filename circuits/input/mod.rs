@@ -37,7 +37,7 @@ pub enum InputDataMode {
 
 pub struct InputDataFetcher {
     pub mode: InputDataMode,
-    pub url: String,
+    pub urls: Vec<String>,
     pub fixture_path: String,
     pub proof_cache: HashMap<Hash, Vec<Proof>>,
     pub save: bool,
@@ -77,16 +77,23 @@ impl Default for InputDataFetcher {
     fn default() -> Self {
         dotenv::dotenv().ok();
 
-        let url = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
+        // TENDERMINT_RPC_URL is a list of comma separated tendermint rpc urls.
+        let urls = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
-        Self::new(&url, "./circuits/fixtures/mocha-4")
+        // Split the url's by comma and add to a vec.
+        let urls = urls
+            .split(',')
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+
+        Self::new(urls, "./circuits/fixtures/mocha-4")
     }
 }
 
-const MAX_NUM_RETRIES: usize = 5;
+const MAX_NUM_RETRIES: usize = 3;
 
 impl InputDataFetcher {
-    pub fn new(url: &str, fixture_path: &str) -> Self {
+    pub fn new(urls: Vec<String>, fixture_path: &str) -> Self {
         #[allow(unused_mut)]
         let mut mode;
         #[cfg(test)]
@@ -100,7 +107,7 @@ impl InputDataFetcher {
 
         Self {
             mode,
-            url: url.to_string(),
+            urls,
             fixture_path: fixture_path.to_string(),
             proof_cache: HashMap::new(),
             save: false,
@@ -111,31 +118,35 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    // Request data from the Tendermint RPC with quadratic backoff.
-    pub async fn request_from_rpc(&self, url: &str, retries: usize) -> String {
-        info!("Querying url {:?}", url);
-        let mut res = reqwest::get(url).await;
-        let mut num_retries = 0;
-        while res.is_err() && num_retries < retries {
-            info!("Querying url {:?}", url);
-            res = reqwest::get(url).await;
-            // Quadratic backoff for requests.
-            tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(num_retries as u32))).await;
-            num_retries += 1;
-        }
+    // Request data from the Tendermint RPC with quadratic backoff & multiple RPC's.
+    pub async fn request_from_rpc(&self, route: &str, retries: usize) -> String {
+        for i in 0..self.urls.len() {
+            let url = format!("{}/{}", self.urls[i], route);
+            info!("Querying url {:?}", url.clone());
+            let mut res = reqwest::get(url.clone()).await;
+            let mut num_retries = 0;
+            while res.is_err() && num_retries < retries {
+                info!("Querying url {:?}", url.clone());
+                res = reqwest::get(url.clone()).await;
+                // Quadratic backoff for requests.
+                tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(num_retries as u32)))
+                    .await;
+                num_retries += 1;
+            }
 
-        if res.is_err() {
-            panic!("Failed to fetch data from Tendermint RPC endpoint");
+            if res.is_ok() {
+                return res.unwrap().text().await.unwrap();
+            }
         }
-        res.unwrap().text().await.unwrap()
+        panic!("Failed to fetch data from Tendermint RPC endpoint");
     }
 
     // Get the latest signed header from the RPC endpoint.
     // Note: Only used in script.
     pub async fn get_latest_signed_header(&self) -> SignedHeader {
         if self.mode == InputDataMode::Rpc {
-            let query_url = format!("{}/commit", self.url);
-            let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+            let route = "commit";
+            let res = self.request_from_rpc(route, MAX_NUM_RETRIES).await;
             let v: CommitResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
             v.result.signed_header
         } else {
@@ -179,15 +190,11 @@ impl InputDataFetcher {
             self.fixture_path,
             block_number.to_string().as_str()
         );
-        let query_url = format!(
-            "{}/commit?height={}",
-            self.url,
-            block_number.to_string().as_str()
-        );
+        let query_route = format!("commit?height={}", block_number.to_string().as_str());
 
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
@@ -244,15 +251,15 @@ impl InputDataFetcher {
             block_number.to_string().as_str(),
             page_number
         );
-        let query_url = format!(
-            "{}/validators?height={}&per_page=100&page={}",
-            self.url,
+        let query_route = format!(
+            "validators?height={}&per_page=100&page={}",
             block_number.to_string().as_str(),
             page_number.to_string().as_str()
         );
+
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
