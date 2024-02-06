@@ -142,7 +142,7 @@ impl TendermintXOperator {
         Ok(request_id)
     }
 
-    async fn is_consistent(&self, current_block: u64) {
+    async fn is_consistent(&mut self, current_block: u64) {
         let expected_current_signed_header = self
             .data_fetcher
             .get_signed_header_from_number(current_block)
@@ -166,7 +166,7 @@ impl TendermintXOperator {
         }
     }
 
-    async fn run(&self) {
+    async fn run(&mut self) {
         // Loop every 240 minutes.
         const LOOP_DELAY: u64 = 240;
 
@@ -229,6 +229,6 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let operator = TendermintXOperator::new();
+    let mut operator = TendermintXOperator::new();
     operator.run().await;
 }

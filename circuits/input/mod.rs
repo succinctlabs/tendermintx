@@ -119,9 +119,9 @@ impl InputDataFetcher {
     }
 
     // Request data from the Tendermint RPC with quadratic backoff & multiple RPC's.
-    pub async fn request_from_rpc(&self, route: &str, retries: usize) -> String {
+    pub async fn request_from_rpc(&mut self, route: &str, retries: usize) -> String {
         for i in 0..self.urls.len() {
-            let url = format!("{}/{}", self.urls[i], route);
+            let url = format!("{}/{}", self.urls[0], route);
             info!("Querying url {:?}", url.clone());
             let mut res = reqwest::get(url.clone()).await;
             let mut num_retries = 0;
@@ -137,13 +137,15 @@ impl InputDataFetcher {
             if res.is_ok() {
                 return res.unwrap().text().await.unwrap();
             }
+            // If a URL is failing, remove it from the list of URLs.
+            self.urls.remove(i);
         }
         panic!("Failed to fetch data from Tendermint RPC endpoint");
     }
 
     // Get the latest signed header from the RPC endpoint.
     // Note: Only used in script.
-    pub async fn get_latest_signed_header(&self) -> SignedHeader {
+    pub async fn get_latest_signed_header(&mut self) -> SignedHeader {
         if self.mode == InputDataMode::Rpc {
             let route = "commit";
             let res = self.request_from_rpc(route, MAX_NUM_RETRIES).await;
@@ -156,7 +158,7 @@ impl InputDataFetcher {
 
     // Search to find the highest block number to call request_combined_skip on. If the search
     // returns start_block + 1, then we call request_combined_step instead.
-    pub async fn find_block_to_request(&self, start_block: u64, max_end_block: u64) -> u64 {
+    pub async fn find_block_to_request(&mut self, start_block: u64, max_end_block: u64) -> u64 {
         let mut curr_end_block = max_end_block;
         loop {
             if curr_end_block - start_block == 1 {
@@ -184,7 +186,7 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_signed_header_from_number(&self, block_number: u64) -> SignedHeader {
+    pub async fn get_signed_header_from_number(&mut self, block_number: u64) -> SignedHeader {
         let file_name = format!(
             "{}/{}/commit.json",
             self.fixture_path,
@@ -215,7 +217,7 @@ impl InputDataFetcher {
         v.result.signed_header
     }
 
-    pub async fn get_validator_set_from_number(&self, block_number: u64) -> Vec<Info> {
+    pub async fn get_validator_set_from_number(&mut self, block_number: u64) -> Vec<Info> {
         let mut validators = Vec::new();
 
         let mut page_number = 1;
@@ -240,7 +242,7 @@ impl InputDataFetcher {
     }
 
     async fn fetch_validator_result(
-        &self,
+        &mut self,
         block_number: u64,
         page_number: u64,
     ) -> ValidatorSetResponse {
@@ -522,7 +524,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_header() {
-        let data_fetcher = super::InputDataFetcher::default();
+        let mut data_fetcher = super::InputDataFetcher::default();
         let signed_header = data_fetcher.get_signed_header_from_number(3000).await;
         println!(
             "Header: {:?}",
