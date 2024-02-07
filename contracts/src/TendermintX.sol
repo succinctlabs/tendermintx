@@ -145,7 +145,7 @@ contract TendermintX is ITendermintX {
         if (frozen) {
             revert ContractFrozen();
         }
-        
+
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -264,6 +264,7 @@ contract TendermintX is ITendermintX {
             revert InvalidConflictBlock();
         }
 
+        // Mark the contract as frozen.
         frozen = true;
         emit Freeze(_conflictBlock, existingHeader, conflictingHeader);
     }
