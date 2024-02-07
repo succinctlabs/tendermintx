@@ -5,12 +5,20 @@ import {ISuccinctGateway} from "./interfaces/ISuccinctGateway.sol";
 import {ITendermintX} from "./interfaces/ITendermintX.sol";
 
 /// @notice The TendermintX contract is a light client for Tendermint.
-/// @dev The light client can not go out of sync for the trusting period (2 weeks).
+/// @dev The light client's latestBlock cannot fall more than FREEZE_GAP_MAX blocks behind the latest block.
 contract TendermintX is ITendermintX {
+    /// @notice Whether the contract is frozen.
+    bool public frozen;
+
     /// @notice The maximum number of blocks that can be skipped. This is typically the length of
     /// trusting period. Below, this is set to 2 weeks, which is roughly 100800 blocks if the
     /// block time is 12 seconds.
     uint64 public constant SKIP_MAX = 100800;
+
+    /// @notice The maximum number of blocks that can be skipped. This is typically the length of
+    /// trusting period. Below, this is set to 2 weeks, which is roughly 100800 blocks if the
+    /// block time is 12 seconds.
+    uint64 public constant FREEZE_GAP_MAX = SKIP_MAX / 2;
 
     /// @notice The address of the gateway contract.
     address public gateway;
@@ -30,6 +38,7 @@ contract TendermintX is ITendermintX {
     /// @notice Initialize the contract with the address of the gateway contract.
     constructor(address _gateway) {
         gateway = _gateway;
+        frozen = false;
     }
 
     /// @notice Update the address of the gateway contract.
@@ -170,8 +179,76 @@ contract TendermintX is ITendermintX {
         emit HeadUpdate(nextBlock, newHeader);
     }
 
-    /// @dev See "./ITendermintX.sol"
-    function getHeaderHash(uint64 height) external view returns (bytes32) {
-        return blockHeightToHeaderHash[height];
+    /// @notice Request a freeze of the contract by proving an invalid header at invalidBlock.
+     /// @param _trustedBlock The block to skip to.
+    /// @param _conflictBlock The block to skip to.
+    /// @dev The contract will be frozen if the skip proof is valid.
+    function requestFreeze(uint64 _trustedBlock, uint64 _conflictBlock) external payable {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        bytes32 existingHeader = blockHeightToHeaderHash[_conflictBlock];
+        if (trustedHeader == bytes32(0) || existingHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
+        if (
+            _trustedBlock <= latestBlock - FREEZE_GAP_MAX || _conflictBlock > latestBlock
+        ) {
+            revert TargetBlockNotInRange();
+        }
+
+        ISuccinctGateway(gateway).requestCall{value: msg.value}(
+            skipFunctionId,
+            abi.encodePacked(_trustedBlock, trustedHeader, _conflictBlock),
+            address(this),
+            abi.encodeWithSelector(
+                this.skip.selector,
+                _trustedBlock,
+                _conflictBlock
+            ),
+            500000
+        );
+
+        emit FreezeRequested(_trustedBlock, trustedHeader, _conflictBlock);
+    }
+
+    /// @notice Freezes the contract if a valid skip proof is provided to _conflictBlock, which has a
+    /// different header than the one stored in the contract.
+    /// @param _trustedBlock The start block for the skip proof.
+    /// @param _conflictBlock The block with an invalid header.
+    function freeze(uint64 _trustedBlock, uint64 _conflictBlock) external {
+        bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
+        bytes32 existingHeader = blockHeightToHeaderHash[_conflictBlock];
+        if (trustedHeader == bytes32(0) || existingHeader == bytes32(0)) {
+            revert TrustedHeaderNotFound();
+        }
+
+        if (
+            _trustedBlock <= latestBlock - FREEZE_GAP_MAX || _conflictBlock > latestBlock
+        ) {
+            revert TargetBlockNotInRange();
+        }
+
+        // Encode the circuit input.
+        bytes memory input = abi.encodePacked(
+            _trustedBlock,
+            trustedHeader,
+            _conflictBlock
+        );
+
+        // Call gateway to get the proof result.
+        bytes memory requestResult = ISuccinctGateway(gateway).verifiedCall(
+            skipFunctionId,
+            input
+        );
+
+        // Read the conflicting header from request result.
+        bytes32 conflictingHeader = abi.decode(requestResult, (bytes32));
+
+        if (conflictingHeader == existingHeader) {
+            revert InvalidConflictBlock();
+        }
+
+        frozen = true;
+        emit Freeze(_conflictBlock, existingHeader, conflictingHeader);
     }
 }
