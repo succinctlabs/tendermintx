@@ -33,7 +33,7 @@ interface ITendermintX {
         uint64 indexed conflictBlock
     );
 
-    /// @notice Inputs of a skip request.
+    /// @notice Emits an event if the contract is now frozen.
     /// @param conflictBlock The block that conflicts.
     /// @param existingHeader The existing header of the conflict block in the contract.
     /// @param conflictingHeader The new conflicting header provided in the proof.
@@ -42,6 +42,9 @@ interface ITendermintX {
         bytes32 existingHeader,
         bytes32 conflictingHeader
     );
+
+    /// @notice Contract is now frozen.
+    error ContractFrozen();
 
     /// @notice Invalid conflict block, the proved header is not in conflict.
     error InvalidConflictBlock();

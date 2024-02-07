@@ -68,6 +68,10 @@ contract TendermintX is ITendermintX {
     /// Request will fail if the target block is more than SKIP_MAX blocks ahead of the latest block.
     /// Pass both the latest block and the target block as context, as the latest block may change before the request is fulfilled.
     function requestSkip(uint64 _targetBlock) external payable {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -98,6 +102,10 @@ contract TendermintX is ITendermintX {
     /// @param _trustedBlock The latest block when the request was made.
     /// @param _targetBlock The block to skip to.
     function skip(uint64 _trustedBlock, uint64 _targetBlock) external {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
@@ -134,6 +142,10 @@ contract TendermintX is ITendermintX {
     /// @notice Prove the validity of the header at latestBlock + 1.
     /// @dev Only used if 2/3 of voting power in a validator set changes in one block.
     function requestStep() external payable {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+        
         bytes32 latestHeader = blockHeightToHeaderHash[latestBlock];
         if (latestHeader == bytes32(0)) {
             revert LatestHeaderNotFound();
@@ -152,6 +164,10 @@ contract TendermintX is ITendermintX {
     /// @notice Stores the new header for _trustedBlock + 1.
     /// @param _trustedBlock The latest block when the request was made.
     function step(uint64 _trustedBlock) external {
+        if (frozen) {
+            revert ContractFrozen();
+        }
+
         bytes32 trustedHeader = blockHeightToHeaderHash[_trustedBlock];
         if (trustedHeader == bytes32(0)) {
             revert TrustedHeaderNotFound();
