@@ -81,13 +81,14 @@ impl Default for InputDataFetcher {
         // TENDERMINT_RPC_URL is a list of comma separated tendermint rpc urls.
         let urls = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
-        // Split the url's by comma and add to a vec.
+        // Split the url's by commas.
         let urls = urls
             .split(',')
             .map(|s| s.to_string())
             .collect::<Vec<String>>();
+        let fixture_path = "./circuits/fixtures/mocha-4";
 
-        Self::new(urls, "./circuits/fixtures/mocha-4")
+        Self::new(urls, fixture_path)
     }
 }
 
@@ -138,7 +139,7 @@ impl InputDataFetcher {
             if res.is_ok() {
                 return res.unwrap().text().await.unwrap();
             }
-            // If a URL is failing, remove it from the list of URLs.
+            // If a URL fails after retries, remove it from the list of URLs for this data fetcher.
             self.urls.remove(i);
         }
         panic!("Failed to fetch data from Tendermint RPC endpoint");
