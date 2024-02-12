@@ -880,26 +880,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curta"
-version = "0.1.0"
-source = "git+https://github.com/succinctlabs/starkyx.git#fd41b0fa761e8f57ebfb8475245d5d5a0b3eb225"
-dependencies = [
- "anyhow",
- "bincode",
- "curve25519-dalek",
- "env_logger 0.9.3",
- "hex",
- "itertools 0.10.5",
- "log",
- "num",
- "plonky2",
- "plonky2_maybe_rayon 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand",
- "serde",
- "subtle-encoding",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3035,7 +3015,7 @@ source = "git+https://github.com/mir-protocol/plonky2.git?rev=d2598bd#d2598bded0
 [[package]]
 name = "plonky2x"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#0663ff1bf5eca1432225455bac0d36d9cdbb7831"
+source = "git+https://github.com/succinctlabs/succinctx.git#461a4719c1806fa7a8549d26bc14b344661b8a57"
 dependencies = [
  "anyhow",
  "array-macro",
@@ -3044,7 +3024,6 @@ dependencies = [
  "base64 0.13.1",
  "bincode",
  "clap",
- "curta",
  "curve25519-dalek",
  "digest 0.10.7",
  "dotenv",
@@ -3069,6 +3048,7 @@ dependencies = [
  "serde_with",
  "sha2 0.10.8",
  "sha256",
+ "starkyx",
  "tokio",
  "tracing",
  "uuid 1.7.0",
@@ -3077,7 +3057,7 @@ dependencies = [
 [[package]]
 name = "plonky2x-derive"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#0663ff1bf5eca1432225455bac0d36d9cdbb7831"
+source = "git+https://github.com/succinctlabs/succinctx.git#461a4719c1806fa7a8549d26bc14b344661b8a57"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4058,6 +4038,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "starkyx"
+version = "0.1.0"
+source = "git+https://github.com/succinctlabs/starkyx.git#db15c43146bc29fb4ca47b98f3ace24597ff89d3"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "curve25519-dalek",
+ "env_logger 0.9.3",
+ "hex",
+ "itertools 0.10.5",
+ "log",
+ "num",
+ "plonky2",
+ "plonky2_maybe_rayon 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand",
+ "serde",
+ "subtle-encoding",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4134,7 +4134,7 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 [[package]]
 name = "succinct-client"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/succinctx.git#0663ff1bf5eca1432225455bac0d36d9cdbb7831"
+source = "git+https://github.com/succinctlabs/succinctx.git#461a4719c1806fa7a8549d26bc14b344661b8a57"
 dependencies = [
  "alloy-primitives",
  "anyhow",
