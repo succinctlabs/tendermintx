@@ -555,7 +555,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_signed_vote() {
-        let data_fetcher = super::InputDataFetcher {
+        let mut data_fetcher = super::InputDataFetcher {
             mode: super::InputDataMode::Rpc,
             ..Default::default()
         };
@@ -577,7 +577,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_find_header_with_nonzero_round() {
-        let data_fetcher = super::InputDataFetcher {
+        let mut data_fetcher = super::InputDataFetcher {
             mode: super::InputDataMode::Rpc,
             ..Default::default()
         };
