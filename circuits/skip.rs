@@ -5,10 +5,8 @@ use async_trait::async_trait;
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::asynchronous::hint::AsyncHint;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ValueStream, Variable, VariableStream};
-use plonky2x::prelude::{
-    ArrayVariable, BoolVariable, Bytes32Variable, CircuitBuilder, Field, PlonkParameters,
-};
+use plonky2x::frontend::vars::{ValueStream, VariableStream};
+use plonky2x::prelude::{Bytes32Variable, CircuitBuilder, Field, PlonkParameters};
 use serde::{Deserialize, Serialize};
 
 use crate::builder::verify::TendermintVerify;
@@ -20,6 +18,7 @@ pub trait TendermintSkipCircuit<L: PlonkParameters<D>, const D: usize> {
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -30,6 +29,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
     fn skip<const MAX_VALIDATOR_SET_SIZE: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         chain_id_bytes: &[u8],
+        skip_max: usize,
         trusted_block: U64Variable,
         trusted_header_hash: Bytes32Variable,
         target_block: U64Variable,
@@ -42,36 +42,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             input_stream,
             SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
-        let target_block_validators =
-            output_stream.read::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(self);
-        let nb_validators = output_stream.read::<Variable>(self);
-        let target_header = output_stream.read::<Bytes32Variable>(self);
-        let round_present = output_stream.read::<BoolVariable>(self);
-        let target_header_chain_id_proof = output_stream.read::<ChainIdProofVariable>(self);
-        let target_header_block_height_proof = output_stream.read::<HeightProofVariable>(self);
-        let target_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(self);
-        let trusted_header = output_stream.read::<Bytes32Variable>(self);
-        let trusted_header_validators_hash_proof =
-            output_stream.read::<HashInclusionProofVariable>(self);
-        let trusted_header_validators_hash_fields = output_stream
-            .read::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(self);
-        let trusted_nb_validators = output_stream.read::<Variable>(self);
+        let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
+
+        let target_header = skip_variable.target_header;
 
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
-            &target_block,
-            &target_block_validators,
-            nb_validators,
-            &target_header,
-            &target_header_chain_id_proof,
-            &target_header_block_height_proof,
-            &target_header_validators_hash_proof,
-            &round_present,
-            trusted_header,
-            &trusted_header_validators_hash_proof,
-            &trusted_header_validators_hash_fields,
-            trusted_nb_validators,
+            skip_max,
+            &skip_variable,
         );
         target_header
     }
@@ -101,26 +79,25 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             )
             .await;
 
-        output_stream.write_value::<ArrayVariable<ValidatorVariable, MAX_VALIDATOR_SET_SIZE>>(
-            result.target_block_validators,
-        );
-        output_stream
-            .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_target_validators));
-        output_stream.write_value::<Bytes32Variable>(result.target_header.into());
-        output_stream.write_value::<BoolVariable>(result.round_present);
-        output_stream.write_value::<ChainIdProofVariable>(result.target_block_chain_id_proof);
-        output_stream.write_value::<HeightProofVariable>(result.target_block_height_proof);
-        output_stream
-            .write_value::<HashInclusionProofVariable>(result.target_block_validators_hash_proof);
-        output_stream.write_value::<Bytes32Variable>(result.trusted_header.into());
-        output_stream
-            .write_value::<HashInclusionProofVariable>(result.trusted_block_validators_hash_proof);
-        output_stream
-            .write_value::<ArrayVariable<ValidatorHashFieldVariable, MAX_VALIDATOR_SET_SIZE>>(
-                result.trusted_block_validators_hash_fields,
-            );
-        output_stream
-            .write_value::<Variable>(L::Field::from_canonical_usize(result.nb_trusted_validators));
+        let verify_skip_struct = VerifySkipStruct::<MAX_VALIDATOR_SET_SIZE, L::Field> {
+            target_header: result.target_header.into(),
+            target_block,
+            target_block_validators: result.target_block_validators,
+            target_block_nb_validators: L::Field::from_canonical_usize(result.nb_target_validators),
+            target_block_round: result.round as u64,
+            target_header_chain_id_proof: result.target_block_chain_id_proof,
+            target_header_height_proof: result.target_block_height_proof,
+            target_header_validator_hash_proof: result.target_block_validators_hash_proof,
+            trusted_header: result.trusted_header.into(),
+            trusted_block,
+            trusted_block_nb_validators: L::Field::from_canonical_usize(
+                result.nb_trusted_validators,
+            ),
+            trusted_header_validator_hash_proof: result.trusted_block_validators_hash_proof,
+            trusted_header_validator_hash_fields: result.trusted_block_validators_hash_fields,
+        };
+
+        output_stream.write_value::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(verify_skip_struct);
     }
 }
 
@@ -146,6 +123,7 @@ impl<
 
         let target_header_hash = builder.skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             C::CHAIN_ID_BYTES,
+            C::SKIP_MAX,
             trusted_block,
             trusted_header_hash,
             target_block,

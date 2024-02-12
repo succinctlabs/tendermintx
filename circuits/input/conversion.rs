@@ -31,7 +31,8 @@ fn get_signed_message_data<F: RichField>(
     EDDSASignatureVariableValue<F>,
 ) {
     let vote = get_vote_from_commit_sig(commit_sig, *val_idx, commit).unwrap();
-    let signed_vote = SignedVote::from_vote(vote, chain_id.clone()).expect("missing signature");
+    let signed_vote =
+        SignedVote::from_vote(vote.clone(), chain_id.clone()).expect("missing signature");
     let mut padded_signed_message = signed_vote.sign_bytes();
     let msg_length = padded_signed_message.len();
 
