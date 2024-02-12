@@ -47,9 +47,7 @@ impl TendermintXOperator {
 
         let contract = TendermintX::new(config.address.0 .0, provider.into());
 
-        let tendermint_rpc_url =
-            env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL must be set");
-        let data_fetcher = InputDataFetcher::new(&tendermint_rpc_url, "");
+        let data_fetcher = InputDataFetcher::default();
 
         let succinct_rpc_url = env::var("SUCCINCT_RPC_URL").expect("SUCCINCT_RPC_URL must be set");
         let succinct_api_key = env::var("SUCCINCT_API_KEY").expect("SUCCINCT_API_KEY must be set");
@@ -144,7 +142,7 @@ impl TendermintXOperator {
         Ok(request_id)
     }
 
-    async fn is_consistent(&self, current_block: u64) {
+    async fn is_consistent(&mut self, current_block: u64) {
         let expected_current_signed_header = self
             .data_fetcher
             .get_signed_header_from_number(current_block)
@@ -168,7 +166,7 @@ impl TendermintXOperator {
         }
     }
 
-    async fn run(&self) {
+    async fn run(&mut self) {
         // Loop every 240 minutes.
         const LOOP_DELAY: u64 = 240;
 
@@ -231,6 +229,6 @@ async fn main() {
     dotenv::dotenv().ok();
     env_logger::init();
 
-    let operator = TendermintXOperator::new();
+    let mut operator = TendermintXOperator::new();
     operator.run().await;
 }

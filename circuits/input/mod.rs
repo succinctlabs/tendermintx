@@ -37,7 +37,7 @@ pub enum InputDataMode {
 
 pub struct InputDataFetcher {
     pub mode: InputDataMode,
-    pub url: String,
+    pub urls: Vec<String>,
     pub fixture_path: String,
     pub proof_cache: HashMap<Hash, Vec<Proof>>,
     pub save: bool,
@@ -78,16 +78,24 @@ impl Default for InputDataFetcher {
     fn default() -> Self {
         dotenv::dotenv().ok();
 
-        let url = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
+        // TENDERMINT_RPC_URL is a list of comma separated tendermint rpc urls.
+        let urls = env::var("TENDERMINT_RPC_URL").expect("TENDERMINT_RPC_URL is not set in .env");
 
-        Self::new(&url, "./circuits/fixtures/mocha-4")
+        // Split the url's by commas.
+        let urls = urls
+            .split(',')
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+        let fixture_path = "./circuits/fixtures/mocha-4";
+
+        Self::new(urls, fixture_path)
     }
 }
 
-const MAX_NUM_RETRIES: usize = 5;
+const MAX_NUM_RETRIES: usize = 3;
 
 impl InputDataFetcher {
-    pub fn new(url: &str, fixture_path: &str) -> Self {
+    pub fn new(urls: Vec<String>, fixture_path: &str) -> Self {
         #[allow(unused_mut)]
         let mut mode;
         #[cfg(test)]
@@ -101,7 +109,7 @@ impl InputDataFetcher {
 
         Self {
             mode,
-            url: url.to_string(),
+            urls,
             fixture_path: fixture_path.to_string(),
             proof_cache: HashMap::new(),
             save: false,
@@ -112,31 +120,37 @@ impl InputDataFetcher {
         self.save = save;
     }
 
-    // Request data from the Tendermint RPC with quadratic backoff.
-    pub async fn request_from_rpc(&self, url: &str, retries: usize) -> String {
-        info!("Querying url {:?}", url);
-        let mut res = reqwest::get(url).await;
-        let mut num_retries = 0;
-        while res.is_err() && num_retries < retries {
-            info!("Querying url {:?}", url);
-            res = reqwest::get(url).await;
-            // Quadratic backoff for requests.
-            tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(num_retries as u32))).await;
-            num_retries += 1;
-        }
+    // Request data from the Tendermint RPC with quadratic backoff & multiple RPC's.
+    pub async fn request_from_rpc(&mut self, route: &str, retries: usize) -> String {
+        for i in 0..self.urls.len() {
+            let url = format!("{}/{}", self.urls[0], route);
+            info!("Querying url {:?}", url.clone());
+            let mut res = reqwest::get(url.clone()).await;
+            let mut num_retries = 0;
+            while res.is_err() && num_retries < retries {
+                info!("Querying url {:?}", url.clone());
+                res = reqwest::get(url.clone()).await;
+                // Quadratic backoff for requests.
+                tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(num_retries as u32)))
+                    .await;
+                num_retries += 1;
+            }
 
-        if res.is_err() {
-            panic!("Failed to fetch data from Tendermint RPC endpoint");
+            if res.is_ok() {
+                return res.unwrap().text().await.unwrap();
+            }
+            // If a URL fails after retries, remove it from the list of URLs for this data fetcher.
+            self.urls.remove(i);
         }
-        res.unwrap().text().await.unwrap()
+        panic!("Failed to fetch data from Tendermint RPC endpoint");
     }
 
     // Get the latest signed header from the RPC endpoint.
     // Note: Only used in script.
-    pub async fn get_latest_signed_header(&self) -> SignedHeader {
+    pub async fn get_latest_signed_header(&mut self) -> SignedHeader {
         if self.mode == InputDataMode::Rpc {
-            let query_url = format!("{}/commit", self.url);
-            let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+            let route = "commit";
+            let res = self.request_from_rpc(route, MAX_NUM_RETRIES).await;
             let v: CommitResponse = serde_json::from_str(&res).expect("Failed to parse JSON");
             v.result.signed_header
         } else {
@@ -146,7 +160,7 @@ impl InputDataFetcher {
 
     // Search to find the highest block number to call request_combined_skip on. If the search
     // returns start_block + 1, then we call request_combined_step instead.
-    pub async fn find_block_to_request(&self, start_block: u64, max_end_block: u64) -> u64 {
+    pub async fn find_block_to_request(&mut self, start_block: u64, max_end_block: u64) -> u64 {
         let mut curr_end_block = max_end_block;
         loop {
             if curr_end_block - start_block == 1 {
@@ -174,21 +188,17 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_signed_header_from_number(&self, block_number: u64) -> SignedHeader {
+    pub async fn get_signed_header_from_number(&mut self, block_number: u64) -> SignedHeader {
         let file_name = format!(
             "{}/{}/commit.json",
             self.fixture_path,
             block_number.to_string().as_str()
         );
-        let query_url = format!(
-            "{}/commit?height={}",
-            self.url,
-            block_number.to_string().as_str()
-        );
+        let query_route = format!("commit?height={}", block_number.to_string().as_str());
 
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
@@ -209,7 +219,7 @@ impl InputDataFetcher {
         v.result.signed_header
     }
 
-    pub async fn get_validator_set_from_number(&self, block_number: u64) -> Vec<Info> {
+    pub async fn get_validator_set_from_number(&mut self, block_number: u64) -> Vec<Info> {
         let mut validators = Vec::new();
 
         let mut page_number = 1;
@@ -234,7 +244,7 @@ impl InputDataFetcher {
     }
 
     async fn fetch_validator_result(
-        &self,
+        &mut self,
         block_number: u64,
         page_number: u64,
     ) -> ValidatorSetResponse {
@@ -245,15 +255,15 @@ impl InputDataFetcher {
             block_number.to_string().as_str(),
             page_number
         );
-        let query_url = format!(
-            "{}/validators?height={}&per_page=100&page={}",
-            self.url,
+        let query_route = format!(
+            "validators?height={}&per_page=100&page={}",
             block_number.to_string().as_str(),
             page_number.to_string().as_str()
         );
+
         let fetched_result = match &self.mode {
             InputDataMode::Rpc => {
-                let res = self.request_from_rpc(&query_url, MAX_NUM_RETRIES).await;
+                let res = self.request_from_rpc(&query_route, MAX_NUM_RETRIES).await;
                 if self.save {
                     // Ensure the directory exists
                     if let Some(parent) = Path::new(&file_name).parent() {
@@ -533,7 +543,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_header() {
-        let data_fetcher = super::InputDataFetcher::default();
+        let mut data_fetcher = super::InputDataFetcher::default();
         let signed_header = data_fetcher.get_signed_header_from_number(3000).await;
         println!(
             "Header: {:?}",
@@ -546,7 +556,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_signed_vote() {
-        let data_fetcher = super::InputDataFetcher {
+        let mut data_fetcher = super::InputDataFetcher {
             mode: super::InputDataMode::Rpc,
             ..Default::default()
         };
@@ -568,7 +578,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_find_header_with_nonzero_round() {
-        let data_fetcher = super::InputDataFetcher {
+        let mut data_fetcher = super::InputDataFetcher {
             mode: super::InputDataMode::Rpc,
             ..Default::default()
         };
