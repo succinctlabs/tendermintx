@@ -45,10 +45,11 @@ pub struct InputDataFetcher {
 
 pub struct StepInputs<F: RichField> {
     pub next_header: [u8; 32],
-    pub round_present: bool,
+    pub round: usize,
     pub next_block_validators: Vec<ValidatorType<F>>,
     pub nb_validators: usize,
     pub next_block_chain_id_proof: ChainIdProofValueType<F>,
+    pub next_block_height_proof: HeightProofValueType<F>,
     pub next_block_validators_hash_proof:
         InclusionProof<HEADER_PROOF_DEPTH, PROTOBUF_HASH_SIZE_BYTES, F>,
     pub next_block_last_block_id_proof:
@@ -61,7 +62,7 @@ pub struct SkipInputs<F: RichField> {
     pub target_block_validators: Vec<ValidatorType<F>>, // validators
     pub nb_target_validators: usize,                    // nb_validators
     pub target_header: [u8; 32],                        // target_header
-    pub round_present: bool,                            // round_present
+    pub round: usize,                                   // round
     pub target_block_chain_id_proof: ChainIdProofValueType<F>, // target_chain_id_proof,
     pub target_block_height_proof: HeightProofValueType<F>, // target_block_height_proof,
     pub target_block_validators_hash_proof:
@@ -358,6 +359,18 @@ impl InputDataFetcher {
             proof: next_block_chain_id_proof.1,
         };
 
+        let next_block_height_proof = self.get_merkle_proof(
+            &next_block_signed_header.header,
+            BLOCK_HEIGHT_INDEX as u64,
+            next_block_signed_header.header.height.encode_vec(),
+        );
+        let next_block_height_proof = HeightProofValueType::<F> {
+            height: next_block_signed_header.header.height.value(),
+            enc_height_byte_length: next_block_signed_header.header.height.encode_vec().len()
+                as u32,
+            proof: next_block_height_proof.1,
+        };
+
         let next_block_validators_hash_proof = self.get_inclusion_proof(
             &next_block_signed_header.header,
             VALIDATORS_HASH_INDEX as u64,
@@ -387,14 +400,15 @@ impl InputDataFetcher {
             NEXT_VALIDATORS_HASH_INDEX as u64,
             prev_header.next_validators_hash.encode_vec(),
         );
-        let round_present = next_block_signed_header.commit.round.value() != 0;
+        let round = next_block_signed_header.commit.round.value() as usize;
         let next_block_header = next_block_signed_header.header.hash();
         StepInputs {
             next_header: next_block_header.as_bytes().try_into().unwrap(),
-            round_present,
+            round,
             next_block_validators,
             nb_validators,
             next_block_chain_id_proof,
+            next_block_height_proof,
             next_block_validators_hash_proof,
             next_block_last_block_id_proof,
             prev_block_next_validators_hash_proof,
@@ -436,7 +450,7 @@ impl InputDataFetcher {
             .get_signed_header_from_number(target_block_number)
             .await;
         let target_block_header = target_signed_header.header.hash();
-        let round_present = target_signed_header.commit.round.value() != 0;
+        let round = target_signed_header.commit.round.value() as usize;
 
         let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
@@ -496,7 +510,7 @@ impl InputDataFetcher {
             target_block_validators,
             nb_target_validators,
             target_header: target_block_header.as_bytes().try_into().unwrap(),
-            round_present,
+            round,
             target_block_chain_id_proof,
             target_block_height_proof,
             target_block_validators_hash_proof,
@@ -510,7 +524,11 @@ impl InputDataFetcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use plonky2x::prelude::GoldilocksField;
     use subtle_encoding::hex;
+
+    use crate::consts::VALIDATOR_SET_SIZE_MAX;
+    use crate::input::conversion::get_validator_data_from_block;
 
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -521,5 +539,51 @@ pub(crate) mod tests {
             "Header: {:?}",
             String::from_utf8(hex::encode(signed_header.header.hash()))
         );
+    }
+
+    type F = GoldilocksField;
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_get_signed_vote() {
+        let data_fetcher = super::InputDataFetcher {
+            mode: super::InputDataMode::Rpc,
+            ..Default::default()
+        };
+
+        let target_block_number = 600000;
+        let target_block_validator_set = data_fetcher
+            .get_validator_set_from_number(target_block_number)
+            .await;
+        let target_signed_header = data_fetcher
+            .get_signed_header_from_number(target_block_number)
+            .await;
+
+        let _ = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+            &target_block_validator_set,
+            &target_signed_header,
+        );
+    }
+
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_find_header_with_nonzero_round() {
+        let data_fetcher = super::InputDataFetcher {
+            mode: super::InputDataMode::Rpc,
+            ..Default::default()
+        };
+
+        let mut target_block_number = 610000;
+        loop {
+            println!("Checking block number: {}", target_block_number);
+            let target_signed_header = data_fetcher
+                .get_signed_header_from_number(target_block_number)
+                .await;
+            if target_signed_header.commit.round.value() != 0 {
+                println!("Found header with non-zero round: {}", target_block_number);
+                break;
+            }
+            target_block_number += 1;
+        }
     }
 }

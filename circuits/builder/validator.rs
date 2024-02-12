@@ -1,16 +1,44 @@
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsYVariable;
 use plonky2x::frontend::merkle::tendermint::TendermintMerkleTree;
 use plonky2x::frontend::uint::uint64::U64Variable;
-use plonky2x::frontend::vars::{ArrayVariable, Bytes32Variable, U32Variable};
+use plonky2x::frontend::vars::{
+    ArrayVariable, BoolVariable, Bytes32Variable, EvmVariable, U32Variable,
+};
 use plonky2x::prelude::{
     ByteVariable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters, Variable,
 };
+use tendermint::merkle::HASH_SIZE;
 
 use super::shared::TendermintHeader;
 use crate::consts::VALIDATOR_BYTE_LENGTH_MAX;
-use crate::variables::{MarshalledValidatorVariable, TendermintHashVariable};
+use crate::variables::{
+    MarshalledValidatorVariable, TendermintHashVariable, ValidatorMessageVariable,
+};
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
+    /// Verify that the round is non-negative.
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>);
+
+    /// Verify each validator's signature contains the correct data.
+    fn verify_validator_signature_data(
+        &mut self,
+        header: &TendermintHashVariable,
+        height: &U64Variable,
+        message: &ValidatorMessageVariable,
+        is_enabled: &BoolVariable,
+        signed: &BoolVariable,
+        round: &U64Variable,
+    );
+
+    /// Extract the header hash from the signed message from a validator. The location of the
+    /// header hash in the signed message depends on whether the round is 0 for the message.
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        expected_header_hash: Bytes32Variable,
+        round: U64Variable,
+    ) -> BoolVariable;
+
     /// Serializes the validator public key and voting power to bytes.
     /// The protobuf encoding of a Tendermint validator is a deterministic function of the validator's
     /// public key (32 bytes) and voting power (int64). The encoding is as follows in bytes:
@@ -41,6 +69,118 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
+    fn verify_non_negative_round(&mut self, le_encoded_round: ArrayVariable<ByteVariable, 8>) {
+        let zero: BoolVariable = self._false();
+        // In LE, the most significant byte is the rightmost byte. In BE bit order, the MSB is the
+        // leftmost bit. We want to check if the MSB (sign bit) of the most significant byte is 0.
+        self.assert_is_equal(le_encoded_round[7].as_be_bits()[0], zero);
+    }
+
+    fn verify_validator_signature_data(
+        &mut self,
+        header: &TendermintHashVariable,
+        height: &U64Variable,
+        message: &ValidatorMessageVariable,
+        is_enabled: &BoolVariable,
+        signed: &BoolVariable,
+        round: &U64Variable,
+    ) {
+        // The protobuf encoding of the signed message of the validator follows the spec here:
+        // https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/canonical.pb.go#L233-L242
+        // If the validator has signed, verify: (a)
+        // - marked as enabled (b)
+        // - message includes the header hash (c)
+        // - MsgType is a Precommit message (d)
+        // - height of the target_header matches the height in the message (e)
+        // - if round is non-zero, specified round matches message (all validators have same round) (f)
+        // Verify a == a * b * c * d * e * f
+
+        // Verify every signed validator's message includes the header hash.
+        let hash_in_message = self.verify_hash_in_message(message, *header, *round);
+
+        // Verify every signed validator's message is a Precommit message (not a Prevote).
+        // 8 is the prefix byte for encoded varints, and 2 is the enum value for Precommit.
+        // Spec: https://github.com/cometbft/cometbft/blob/1f430f51f0e390cd7c789ba9b1e9b35846e34642/api/cometbft/types/v1/types.pb.go#L35-L44
+        const TYPE_START_IDX: usize = 1;
+        let expected_encoded_vote = self.constant::<ArrayVariable<ByteVariable, 2>>(vec![8, 2]);
+        let is_precommit = self.is_equal(
+            expected_encoded_vote,
+            message[TYPE_START_IDX..TYPE_START_IDX + 2].to_vec().into(),
+        );
+
+        // Verify the height of the target_header matches the height in the message. The height
+        // starts at index 4 in the signed validator's message, and is represented as an sfixed64.
+        let mut encoded_height = height.encode(self);
+        // Reverse the byte order to match sfixed64's LE order.
+        encoded_height.reverse();
+        const HEIGHT_START_IDX: usize = 4;
+        let is_commit_height_valid = self.is_equal(
+            ArrayVariable::<ByteVariable, 8>::from(encoded_height),
+            ArrayVariable::<ByteVariable, 8>::from(
+                message[HEIGHT_START_IDX..HEIGHT_START_IDX + 8].to_vec(),
+            ),
+        );
+
+        // If round is non-zero, verify the specified round matches the message.
+        let zero = self.zero();
+        let true_v = self._true();
+        let is_round_zero = self.is_equal(*round, zero);
+        let mut encoded_round = round.encode(self);
+        // Reverse the byte order to match sfixed64's LE order.
+        encoded_round.reverse();
+        let le_encoded_round = ArrayVariable::<ByteVariable, 8>::from(encoded_round);
+        const ROUND_START_IDX: usize = 13;
+        let is_commit_round_valid = self.is_equal(
+            le_encoded_round.clone(),
+            ArrayVariable::<ByteVariable, 8>::from(
+                message[ROUND_START_IDX..ROUND_START_IDX + 8].to_vec(),
+            ),
+        );
+        self.verify_non_negative_round(le_encoded_round);
+        // If round is zero, skip this check.
+        let is_commit_round_valid = self.select(is_round_zero, true_v, is_commit_round_valid);
+
+        let is_valid_message = self.combine_with_and(&[
+            *signed,
+            *is_enabled,
+            hash_in_message,
+            is_precommit,
+            is_commit_height_valid,
+            is_commit_round_valid,
+        ]);
+        self.assert_is_equal(*signed, is_valid_message);
+    }
+
+    fn verify_hash_in_message(
+        &mut self,
+        message: &ValidatorMessageVariable,
+        expected_header_hash: Bytes32Variable,
+        round: U64Variable,
+    ) -> BoolVariable {
+        // If the round is zero, the hash starts at index 16.
+        const ROUND_ZERO_HEADER_HASH_START_IDX: usize = 16;
+        let round_zero_header: Bytes32Variable = message
+            [ROUND_ZERO_HEADER_HASH_START_IDX..ROUND_ZERO_HEADER_HASH_START_IDX + HASH_SIZE]
+            .into();
+
+        // If the round is non-zero, the hash starts at index 25.
+        const ROUND_NONZERO_HEADER_HASH_START_IDX: usize = 25;
+        let round_nonzero_header: Bytes32Variable = message
+            [ROUND_NONZERO_HEADER_HASH_START_IDX..ROUND_NONZERO_HEADER_HASH_START_IDX + HASH_SIZE]
+            .into();
+
+        // If the round is 0, it is not present in the signed message.
+        let zero = self.zero();
+        let round_not_present = self.is_equal(round, zero);
+
+        // Select the correct header hash based on whether the round is present in the message.
+        let computed_header =
+            self.select(round_not_present, round_zero_header, round_nonzero_header);
+
+        // Assert the computed header hash matches the expected header hash.
+        self.is_equal(computed_header, expected_header_hash)
+    }
+
     fn marshal_tendermint_validator(
         &mut self,
         pubkey: &CompressedEdwardsYVariable,
