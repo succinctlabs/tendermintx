@@ -121,8 +121,8 @@ impl InputDataFetcher {
     }
 
     // Request data from the Tendermint RPC with quadratic backoff & multiple RPC's.
-    pub async fn request_from_rpc(&mut self, route: &str, retries: usize) -> String {
-        for i in 0..self.urls.len() {
+    pub async fn request_from_rpc(&self, route: &str, retries: usize) -> String {
+        for _ in 0..self.urls.len() {
             let url = format!("{}/{}", self.urls[0], route);
             info!("Querying url {:?}", url.clone());
             let mut res = reqwest::get(url.clone()).await;
@@ -139,8 +139,6 @@ impl InputDataFetcher {
             if res.is_ok() {
                 return res.unwrap().text().await.unwrap();
             }
-            // If a URL fails after retries, remove it from the list of URLs for this data fetcher.
-            self.urls.remove(i);
         }
         panic!("Failed to fetch data from Tendermint RPC endpoint");
     }
@@ -188,7 +186,7 @@ impl InputDataFetcher {
         }
     }
 
-    pub async fn get_signed_header_from_number(&mut self, block_number: u64) -> SignedHeader {
+    pub async fn get_signed_header_from_number(&self, block_number: u64) -> SignedHeader {
         let file_name = format!(
             "{}/{}/commit.json",
             self.fixture_path,
@@ -543,7 +541,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_get_header() {
-        let mut data_fetcher = super::InputDataFetcher::default();
+        let data_fetcher = super::InputDataFetcher::default();
         let signed_header = data_fetcher.get_signed_header_from_number(3000).await;
         println!(
             "Header: {:?}",
@@ -578,7 +576,7 @@ pub(crate) mod tests {
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]
     async fn test_find_header_with_nonzero_round() {
-        let mut data_fetcher = super::InputDataFetcher {
+        let data_fetcher = super::InputDataFetcher {
             mode: super::InputDataMode::Rpc,
             ..Default::default()
         };
