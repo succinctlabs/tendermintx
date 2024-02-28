@@ -139,8 +139,6 @@ impl InputDataFetcher {
             if res.is_ok() {
                 return res.unwrap().text().await.unwrap();
             }
-            // // If a URL fails after retries, remove it from the list of URLs for this data fetcher.
-            // self.urls.remove(i);
         }
         panic!("Failed to fetch data from Tendermint RPC endpoint");
     }
