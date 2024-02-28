@@ -93,3 +93,9 @@ To find a list of RPC's for most Tendermint chains, check out [this page](https:
 ### Block Protocol Version
 
 Tendermint X is configured to work with [CometBFT block protocol version 11](https://pkg.go.dev/github.com/ben2077/cometbft/version#pkg-constants). If this changes in the future, the Tendermint X circuits might need to be updated.
+
+## Audit
+
+### Informal Audit
+
+- Tendermint X has been audited by Informal Systems. The audit report can be found [here](audits/informal/audit.pdf).
