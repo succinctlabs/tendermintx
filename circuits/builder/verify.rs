@@ -501,15 +501,18 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         trusted_block: &U64Variable,
         target_block: &U64Variable,
     ) {
+        let true_v = self._true();
         let one = self.one();
         let trusted_block_plus_one = self.add(*trusted_block, one);
         // Verify target block > trusted block.
-        self.gt(*target_block, trusted_block_plus_one);
+        let is_target_gt_trusted = self.gt(*target_block, trusted_block_plus_one);
+        self.assert_is_equal(is_target_gt_trusted, true_v);
 
         let skip_max_var = self.constant::<U64Variable>(skip_max as u64);
         let max_block = self.add(*trusted_block, skip_max_var);
         // Verify target block <= trusted block + skip_max.
-        self.lte(*target_block, max_block);
+        let is_target_lte_skip_max = self.lte(*target_block, max_block);
+        self.assert_is_equal(is_target_lte_skip_max, true_v);
     }
 
     fn verify_skip<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
