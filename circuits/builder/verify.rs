@@ -102,6 +102,8 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
         step: &VerifyStepVariable<VALIDATOR_SET_SIZE_MAX>,
     );
 
@@ -125,6 +127,9 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         &mut self,
         expected_chain_id_bytes: &[u8],
         skip_max: usize,
+        trusted_block: U64Variable,
+        trusted_header_hash: Bytes32Variable,
+        target_block: U64Variable,
         skip: &VerifySkipVariable<VALIDATOR_SET_SIZE_MAX>,
     );
 }
@@ -463,15 +468,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
         &mut self,
         expected_chain_id_bytes: &[u8],
+        prev_block_number: U64Variable,
+        prev_header_hash: Bytes32Variable,
         step: &VerifyStepVariable<VALIDATOR_SET_SIZE_MAX>,
     ) {
+        let one = self.one();
+        let next_block = self.add(prev_block_number, one);
         // Verify the new Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
             expected_chain_id_bytes,
             &step.next_block_validators,
             step.next_block_nb_validators,
             &step.next_header,
-            &step.next_block,
+            &next_block,
             &step.next_header_chain_id_proof,
             &step.next_header_height_proof,
             &step.next_header_validators_hash_proof,
@@ -481,7 +490,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // Verify the previous header hash in the new header matches the previous header.
         self.verify_prev_header_in_header(
             &step.next_header,
-            step.prev_header,
+            prev_header_hash,
             &step.next_header_last_block_id_proof,
         );
 
@@ -490,7 +499,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             step.next_header_validators_hash_proof.leaf[2..2 + HASH_SIZE].into();
         self.verify_prev_header_next_validators_hash(
             new_validators_hash,
-            &step.prev_header,
+            &prev_header_hash,
             &step.prev_header_next_validators_hash_proof,
         );
     }
@@ -516,11 +525,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         &mut self,
         expected_chain_id_bytes: &[u8],
         skip_max: usize,
+        trusted_block: U64Variable,
+        trusted_header_hash: Bytes32Variable,
+        target_block: U64Variable,
         skip: &VerifySkipVariable<VALIDATOR_SET_SIZE_MAX>,
     ) {
         // Verify the target block is non-sequential with the trusted block and within maximum
         // skip distance.
-        self.verify_skip_distance(skip_max, &skip.trusted_block, &skip.target_block);
+        self.verify_skip_distance(skip_max, &trusted_block, &target_block);
 
         // Verify the validators from the target block marked present_on_trusted_header
         // are present on the trusted header, and comprise at least 1/3 of the total voting power
@@ -528,7 +540,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.verify_trusted_validators(
             &skip.target_block_validators,
             skip.target_block_nb_validators,
-            skip.trusted_header,
+            trusted_header_hash,
             &skip.trusted_header_validator_hash_proof,
             &skip.trusted_header_validator_hash_fields,
             skip.trusted_block_nb_validators,
@@ -540,7 +552,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             &skip.target_block_validators,
             skip.target_block_nb_validators,
             &skip.target_header,
-            &skip.target_block,
+            &target_block,
             &skip.target_header_chain_id_proof,
             &skip.target_header_height_proof,
             &skip.target_header_validator_hash_proof,
