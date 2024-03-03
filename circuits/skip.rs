@@ -42,7 +42,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
             input_stream,
             SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
-        let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
+        let mut skip_variable =
+            output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
+        skip_variable.trusted_block = trusted_block;
+        skip_variable.trusted_header = trusted_header_hash;
+        skip_variable.target_block = target_block;
 
         let target_header = skip_variable.target_header;
 
