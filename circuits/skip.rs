@@ -49,6 +49,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintSkipCircuit<L, D> for Circ
         self.verify_skip::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
             skip_max,
+            trusted_block,
+            trusted_header_hash,
+            target_block,
             &skip_variable,
         );
         target_header
@@ -81,15 +84,12 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 
         let verify_skip_struct = VerifySkipStruct::<MAX_VALIDATOR_SET_SIZE, L::Field> {
             target_header: result.target_header.into(),
-            target_block,
             target_block_validators: result.target_block_validators,
             target_block_nb_validators: L::Field::from_canonical_usize(result.nb_target_validators),
             target_block_round: result.round as u64,
             target_header_chain_id_proof: result.target_block_chain_id_proof,
             target_header_height_proof: result.target_block_height_proof,
             target_header_validator_hash_proof: result.target_block_validators_hash_proof,
-            trusted_header: result.trusted_header.into(),
-            trusted_block,
             trusted_block_nb_validators: L::Field::from_canonical_usize(
                 result.nb_trusted_validators,
             ),
