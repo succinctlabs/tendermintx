@@ -574,7 +574,6 @@ pub(crate) mod tests {
     use subtle_encoding::hex;
 
     use super::*;
-    use crate::consts::VALIDATOR_MESSAGE_BYTES_LENGTH_MAX;
 
     #[test]
     fn test_verify_hash_in_message() {

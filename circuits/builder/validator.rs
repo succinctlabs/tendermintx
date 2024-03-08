@@ -260,10 +260,7 @@ pub(crate) mod tests {
     use itertools::Itertools;
     use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
     use plonky2x::frontend::merkle::tree::{InclusionProof, MerkleInclusionProofVariable};
-    use plonky2x::frontend::vars::BoolVariable;
-    use plonky2x::prelude::{
-        ArrayVariable, Bytes32Variable, DefaultBuilder, Field, GoldilocksField,
-    };
+    use plonky2x::prelude::{DefaultBuilder, Field, GoldilocksField};
     use tendermint_proto::types::BlockId as RawBlockId;
     use tendermint_proto::Protobuf;
     use tokio::runtime::Runtime;
