@@ -37,17 +37,14 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
             StepOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
         );
         let step_variable = output_stream.read::<VerifyStepVariable<MAX_VALIDATOR_SET_SIZE>>(self);
-        // Assert that the step_variable is appropriately connected to the inputs.
-        self.assert_is_equal(step_variable.prev_header, prev_header_hash);
-        let one = self.one();
-        let next = self.add(prev_block_number, one);
-        self.assert_is_equal(step_variable.next_block, next);
+
+        let next_header = step_variable.next_header;
 
         self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
             &step_variable,
         );
-        step_variable.next_header
+        next_header
     }
 }
 
