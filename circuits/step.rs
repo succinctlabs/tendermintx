@@ -42,6 +42,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintStepCircuit<L, D> for Circ
 
         self.verify_step::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES>(
             chain_id_bytes,
+            prev_block_number,
+            prev_header_hash,
             &step_variable,
         );
         next_header
@@ -72,7 +74,6 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
 
         let verify_step_struct = VerifyStepStruct::<MAX_VALIDATOR_SET_SIZE, L::Field> {
             next_header: result.next_header.into(),
-            next_block: prev_block_number + 1,
             next_block_validators: result.next_block_validators,
             next_block_nb_validators: L::Field::from_canonical_usize(result.nb_validators),
             next_block_round: result.round as u64,
@@ -80,7 +81,6 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             next_header_height_proof: result.next_block_height_proof,
             next_header_validators_hash_proof: result.next_block_validators_hash_proof,
             next_header_last_block_id_proof: result.next_block_last_block_id_proof,
-            prev_header: prev_header_hash,
             prev_header_next_validators_hash_proof: result.prev_block_next_validators_hash_proof,
         };
 
