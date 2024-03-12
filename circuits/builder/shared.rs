@@ -68,7 +68,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintHeader<L, D> for CircuitBu
         &mut self,
         value: &U64Variable,
     ) -> [ByteVariable; VARINT_BYTES_LENGTH_MAX] {
-        // TODO: Assert the value is less than 2^63 - 1.
         let zero = self.zero::<Variable>();
         let one = self.one::<Variable>();
         let two = self.constant::<Variable>(L::Field::from_canonical_usize(2));
