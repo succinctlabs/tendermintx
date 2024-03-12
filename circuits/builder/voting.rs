@@ -15,6 +15,7 @@ pub trait TendermintVoting {
     ) -> U64Variable;
 
     /// Assert the enabled voting power > threshold * total voting power.
+    #[must_use]
     fn is_voting_power_greater_than_threshold<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validator_voting_power: &[U64Variable],
