@@ -32,6 +32,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 
     /// Extract the header hash from the signed message from a validator. The location of the
     /// header hash in the signed message depends on whether the round is 0 for the message.
+    #[must_use]
     fn verify_hash_in_message(
         &mut self,
         message: &ValidatorMessageVariable,

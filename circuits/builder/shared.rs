@@ -36,6 +36,7 @@ pub trait TendermintHeader<L: PlonkParameters<D>, const D: usize> {
     );
 
     /// Get result of AND operation for BoolVariable array.
+    #[must_use]
     fn combine_with_and(&mut self, arr: &[BoolVariable]) -> BoolVariable;
 }
 
