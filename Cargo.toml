@@ -34,8 +34,8 @@ ethers = "2.0.9"
 itertools = "0.11.0"
 log = "0.4.19"
 num = "0.4.1"
-plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
-succinct-client = { git = "https://github.com/succinctlabs/succinctx.git" }
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", tag = "v1.0.3" }
+succinct-client = { git = "https://github.com/succinctlabs/succinctx.git", tag = "v1.0.3" }
 rand = "0.8.5"
 reqwest = "0.11.18"
 serde = "1.0.175"
