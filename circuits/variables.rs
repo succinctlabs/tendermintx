@@ -65,8 +65,7 @@ pub type BlockIDInclusionProofVariable =
 /// power, validator byte length, and three flags: enabled, and signed..
 ///
 /// A validator is marked as enabled if it is a part of the validator set for the specified block.
-/// A validator is marked as signed if it has signed the block. A validator is marked as present on
-/// trusted header if it is a part of the validator set for the trusted header (only used in skip).
+/// A validator is marked as signed if it has signed the block.
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(ValidatorType)]
 pub struct ValidatorVariable {

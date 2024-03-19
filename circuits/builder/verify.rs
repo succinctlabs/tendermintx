@@ -388,8 +388,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // Confirm the computed validators hash matches the expected hash.
         self.assert_is_equal(computed_val_hash, expected_val_hash);
 
-        // Indicator for each trusted validator to determine if it is present in the target header.
-        let mut trusted_validator_on_target_header = vec![self._false(); VALIDATOR_SET_SIZE_MAX];
+        // Indicator for each trusted validator to determine if it has signed the commit on the target block.
+        let mut trusted_validator_signed_on_target_header =
+            vec![self._false(); VALIDATOR_SET_SIZE_MAX];
 
         // Generate a list indicating which trusted validators signed the target block. Account for
         // disorder in the validators list by iterating through all validators to match public keys and
@@ -397,8 +398,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let signed_target_header = validators[i].signed;
 
-            // For each target validator, mark the corresponding trusted validator as present if the public keys match
-            // and the target validator has signed the block.
+            // For each target validator that has signed, if a trusted validator has the same pubkey,
+            // set the flag of the trusted validator to true.
             for j in 0..VALIDATOR_SET_SIZE_MAX {
                 let pubkey_match_idx = self.is_equal(
                     validators[i].pubkey.clone(),
@@ -407,10 +408,10 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
                 let signed_and_pubkey_match = self.and(pubkey_match_idx, signed_target_header);
 
-                trusted_validator_on_target_header[j] = self.select(
+                trusted_validator_signed_on_target_header[j] = self.select(
                     signed_and_pubkey_match,
                     true_var,
-                    trusted_validator_on_target_header[j],
+                    trusted_validator_signed_on_target_header[j],
                 );
             }
         }
@@ -430,7 +431,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             trusted_nb_enabled_validators,
             &threshold_numerator,
             &threshold_denominator,
-            &trusted_validator_on_target_header,
+            &trusted_validator_signed_on_target_header,
         );
     }
 
