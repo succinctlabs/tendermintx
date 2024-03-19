@@ -35,6 +35,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
     ) -> U64Variable {
         // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
         let zero = self.zero();
+        let false_var = self._false();
         let mut total = self.zero();
 
         let mut is_enabled = self._true();
@@ -48,7 +49,13 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
 
             // If enabled, add the voting power to the total.
             let val = self.select(is_enabled, validator_voting_power[i], zero);
-            total = self.add(total, val)
+
+            // Confirm total + val does not overflow.
+            let total_plus_val = self.add(total, val);
+            let overflow = self.lt(total_plus_val, total);
+            self.assert_is_equal(overflow, false_var);
+
+            total = total_plus_val;
         }
         total
     }
@@ -63,16 +70,34 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
         let zero = self.constant::<U64Variable>(0);
+        let false_var = self._false();
 
         let mut accumulated_voting_power = self.constant::<U64Variable>(0);
         // Accumulate the voting power from the enabled validators.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let select_voting_power = self.select(in_group[i], validator_voting_power[i], zero);
-            accumulated_voting_power = self.add(accumulated_voting_power, select_voting_power);
+
+            // Confirm accumulated_voting_power + select_voting_power does not overflow.
+            let accumulated_plus_select = self.add(accumulated_voting_power, select_voting_power);
+            let overflow = self.lt(accumulated_plus_select, accumulated_voting_power);
+            self.assert_is_equal(overflow, false_var);
+
+            accumulated_voting_power = accumulated_plus_select;
         }
 
         let scaled_accumulated = self.mul(accumulated_voting_power, *threshold_denominator);
+
+        // Verify scaled_accumulated == accumulated_voting_power * threshold_denominator and does
+        // not overflow.
+        let accumulated_vp_expected = self.div(scaled_accumulated, *threshold_denominator);
+        self.assert_is_equal(accumulated_voting_power, accumulated_vp_expected);
+
         let scaled_threshold = self.mul(*total_voting_power, *threshold_numerator);
+
+        // Verify scaled_threshold == total_voting_power * threshold_numerator and does
+        // not overflow.
+        let total_vp_expected = self.div(scaled_threshold, *threshold_numerator);
+        self.assert_is_equal(*total_voting_power, total_vp_expected);
 
         // Return accumulated_voting_power > total_vp * (threshold_numerator / threshold_denominator).
         self.gt(scaled_accumulated, scaled_threshold)
