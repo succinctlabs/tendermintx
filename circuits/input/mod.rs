@@ -15,7 +15,6 @@ use tendermint::validator::{Info, Set as TendermintValidatorSet};
 use tendermint_proto::types::BlockId as RawBlockId;
 use tendermint_proto::Protobuf;
 
-use self::conversion::update_present_on_trusted_header;
 use self::tendermint_utils::{
     generate_proofs_from_header, is_valid_skip, CommitResponse, Hash, Header, Proof,
     ValidatorSetResponse,
@@ -460,15 +459,9 @@ impl InputDataFetcher {
         let target_block_header = target_signed_header.header.hash();
         let round = target_signed_header.commit.round.value() as usize;
 
-        let mut target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
+        let target_block_validators = get_validator_data_from_block::<VALIDATOR_SET_SIZE_MAX, F>(
             &target_block_validator_set,
             &target_signed_header,
-        );
-        update_present_on_trusted_header(
-            &mut target_block_validators,
-            &target_signed_header.commit,
-            &target_block_validator_set,
-            &trusted_block_validator_set,
         );
 
         let encoded_chain_id = target_signed_header.header.chain_id.clone().encode_vec();

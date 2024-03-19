@@ -66,8 +66,8 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         nb_enabled_validators: Variable,
     ) -> TendermintHashVariable;
 
-    /// Verify the validators from the target block marked present_on_trusted_header are present on
-    /// the trusted header.
+    /// Verify the set of validators from the target block comprise more than 1/3 of the voting
+    /// power on the trusted block.
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
@@ -387,16 +387,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         self.assert_is_equal(computed_val_hash, expected_val_hash);
 
-        // If a validator is marked present_on_trusted_header, it should be marked as signed.
-        for i in 0..VALIDATOR_SET_SIZE_MAX {
-            let present_and_signed = self.and(
-                validators[i].present_on_trusted_header,
-                validators[i].signed,
-            );
-
-            self.assert_is_equal(validators[i].present_on_trusted_header, present_and_signed);
-        }
-
         // Indicator for each trusted validator whether it is present on the target header.
         let mut trusted_validator_on_target_header = vec![self._false(); VALIDATOR_SET_SIZE_MAX];
 
@@ -544,9 +534,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // skip distance.
         self.verify_skip_distance(skip_max, &trusted_block, &target_block);
 
-        // Verify the validators from the target block marked present_on_trusted_header
-        // are present on the trusted header, and comprise more than 1/3 of the total voting power
-        // on the target block.
+        // Verify the set of validators from the target block comprise more than 1/3 of the voting
+        // power on the trusted block.
         self.verify_trusted_validators(
             &skip.target_block_validators,
             trusted_header_hash,

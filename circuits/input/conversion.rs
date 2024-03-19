@@ -94,7 +94,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 signed: true,
-                present_on_trusted_header: false,
             });
         } else {
             let signature_value = EDDSASignatureVariableValue {
@@ -111,7 +110,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
                 voting_power: validator.power(),
                 validator_byte_length: F::from_canonical_usize(val_bytes.len()),
                 signed: false,
-                present_on_trusted_header: false,
             });
         }
     }
@@ -132,7 +130,6 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
             voting_power: 0u64,
             validator_byte_length: F::from_canonical_usize(VALIDATOR_BYTE_LENGTH_MAX),
             signed: false,
-            present_on_trusted_header: false, // This field ignored for this case
         });
     }
 
@@ -178,63 +175,4 @@ pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: R
     }
 
     trusted_validator_fields
-}
-
-pub fn update_present_on_trusted_header<F: RichField>(
-    target_validators: &mut [ValidatorType<F>],
-    target_commit: &Commit,
-    target_block_validators: &[Info],
-    trusted_block_validators: &[Info],
-) {
-    // Parse each block to compute the validators that are the same from trusted_block to target_block, and the cumulative voting power of the shared validators
-    let mut shared_voting_power = 0;
-
-    let threshold = 1_f64 / 3_f64;
-
-    let target_block_validator_set =
-        TendermintValidatorSet::new(target_block_validators.to_vec(), None);
-    let start_block_validator_set =
-        TendermintValidatorSet::new(trusted_block_validators.to_vec(), None);
-
-    let target_block_total_voting_power = target_block_validator_set.total_voting_power().value();
-
-    let start_block_validators = start_block_validator_set.validators();
-
-    let mut start_block_idx = 0;
-    let start_block_num_validators = start_block_validators.len();
-
-    // Exit if we have already reached the threshold
-    // TODO: Confirm this is resilient by testing many different cases.
-    while target_block_total_voting_power as f64 * threshold > shared_voting_power as f64
-        && start_block_idx < start_block_num_validators
-    {
-        if let Some(target_block_validator) =
-            target_block_validator_set.validator(start_block_validators[start_block_idx].address)
-        {
-            // Get index of start_block_validators[idx] in target_block_validators
-            let target_idx = target_block_validator_set
-                .validators()
-                .iter()
-                .position(|x| *x == target_block_validator)
-                .unwrap();
-
-            // Confirm that the validator has signed on target_block.
-            for sig in target_commit.signatures.iter() {
-                if sig.validator_address().is_some()
-                    && sig.validator_address().unwrap() == target_block_validator.address
-                {
-                    // Add the shared voting power to the validator
-                    shared_voting_power += target_block_validator.power();
-                    // Set the present_on_trusted_header field to true
-                    target_validators[target_idx].present_on_trusted_header = true;
-                }
-            }
-        }
-        start_block_idx += 1;
-    }
-
-    assert!(
-        target_block_total_voting_power as f64 * threshold <= shared_voting_power as f64,
-        "shared voting power is less than threshold"
-    );
 }
