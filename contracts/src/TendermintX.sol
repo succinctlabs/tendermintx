@@ -55,7 +55,7 @@ contract TendermintX is ITendermintX {
 
     /// @notice Prove the validity of the header at the target block.
     /// @param _targetBlock The block to skip to.
-    /// @dev Skip proof is valid if at least 1/3 of the voting power signed on _targetBlock is from validators in the validator set for latestBlock.
+    /// @dev Skip proof is valid if more than 1/3 of the voting power signed on _targetBlock is from validators in the validator set for latestBlock.
     /// Request will fail if the target block is more than SKIP_MAX blocks ahead of the latest block.
     /// Pass both the latest block and the target block as context, as the latest block may change before the request is fulfilled.
     function requestSkip(uint64 _targetBlock) external payable {
