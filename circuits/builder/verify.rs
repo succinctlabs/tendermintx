@@ -398,8 +398,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let signed_target_header = validators[i].signed;
 
-            // For each target validator that has signed, if a trusted validator has the same pubkey,
-            // set the flag of the trusted validator to true.
+            // For each target validator i that has signed, if a trusted validator j has the same pubkey,
+            // set the flag of trusted validator j to true.
             for j in 0..VALIDATOR_SET_SIZE_MAX {
                 let pubkey_match_idx = self.is_equal(
                     validators[i].pubkey.clone(),
