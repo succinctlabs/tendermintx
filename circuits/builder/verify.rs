@@ -401,15 +401,16 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             // For each target validator i that has signed, if a trusted validator j has the same pubkey,
             // set the flag of trusted validator j to true.
             for j in 0..VALIDATOR_SET_SIZE_MAX {
-                let pubkey_match_idx = self.is_equal(
+                let pubkeys_match = self.is_equal(
                     validators[i].pubkey.clone(),
                     trusted_validator_hash_fields[j].pubkey.clone(),
                 );
 
-                let signed_and_pubkey_match = self.and(pubkey_match_idx, signed_target_header);
+                let signed_target_header_and_pubkey_match =
+                    self.and(pubkeys_match, signed_target_header);
 
                 trusted_validator_signed_on_target_header[j] = self.select(
-                    signed_and_pubkey_match,
+                    signed_target_header_and_pubkey_match,
                     true_var,
                     trusted_validator_signed_on_target_header[j],
                 );
