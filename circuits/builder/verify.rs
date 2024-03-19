@@ -117,7 +117,7 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         target_block: &U64Variable,
     );
 
-    /// Verify a Tendermint block that is non-sequential with the trusted block. At least 1/3 of the
+    /// Verify a Tendermint block that is non-sequential with the trusted block. More than 1/3 of the
     /// stake on the new block must be from validators on the trusted block to skip intermediate
     /// verification. Additionally, the new block must have 2/3 of the validators signed on it.
     ///
@@ -286,7 +286,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path);
         self.assert_is_equal(*header, header_from_validator_root_proof);
 
-        // Assert signed validators comprise at least 2/3 of the total voting power.
+        // Assert signed validators comprise more than 2/3 of the total voting power.
         let threshold_numerator = self.constant::<U64Variable>(2);
         let threshold_denominator = self.constant::<U64Variable>(3);
         self.verify_voting_threshold(
@@ -419,7 +419,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             .map(|v| v.present_on_trusted_header)
             .collect();
 
-        // Assert validators from the trusted block comprise at least 1/3 of the total voting power
+        // Assert validators from the trusted block comprise more than 1/3 of the total voting power
         // on the target block.
         let threshold_numerator = self.constant::<U64Variable>(1);
         let threshold_denominator = self.constant::<U64Variable>(3);
@@ -452,7 +452,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         );
 
         // Compute whether the voting power of the included validators is greater than the threshold.
-        let gte_threshold = self.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
+        let gt_threshold = self.is_voting_power_greater_than_threshold::<VALIDATOR_SET_SIZE_MAX>(
             &validator_voting_power,
             include_in_check,
             &total_voting_power,
@@ -462,7 +462,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
 
         // Assert the voting power of the included validators is greater than the threshold.
         let true_v = self._true();
-        self.assert_is_equal(gte_threshold, true_v);
+        self.assert_is_equal(gt_threshold, true_v);
     }
 
     fn verify_step<const VALIDATOR_SET_SIZE_MAX: usize, const CHAIN_ID_SIZE_BYTES: usize>(
@@ -538,7 +538,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         self.verify_skip_distance(skip_max, &trusted_block, &target_block);
 
         // Verify the validators from the target block marked present_on_trusted_header
-        // are present on the trusted header, and comprise at least 1/3 of the total voting power
+        // are present on the trusted header, and comprise more than 1/3 of the total voting power
         // on the target block.
         self.verify_trusted_validators(
             &skip.target_block_validators,
