@@ -578,7 +578,7 @@ pub(crate) mod tests {
         // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
         // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
         // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
-        // No round exists in present the message that was signed above
+        // No round exists in the message that was signed above.
 
         env_logger::try_init().unwrap_or_default();
 
