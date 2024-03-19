@@ -370,33 +370,35 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         trusted_nb_enabled_validators: Variable,
     ) {
         let true_var = self._true();
-        // Get the header from the validator hash merkle proof.
+        // Retrieve the header from the validator hash Merkle proof.
         let val_hash_path = self.get_path_to_leaf(VALIDATORS_HASH_INDEX);
         let header_from_validator_root_proof =
             self.get_root_from_merkle_proof(trusted_validator_hash_proof, &val_hash_path);
 
-        // Assert the validator hash proof matches the trusted header.
+        // Ensure the trusted validator hash proof aligns with the trusted header.
         self.assert_is_equal(header_from_validator_root_proof, trusted_header);
 
-        // Compute the validators hash of the trusted block from the necessary fields.
+        // Calculate the validators hash of the trusted block using the provided fields.
         let computed_val_hash = self
             .compute_validators_hash(trusted_validator_hash_fields, trusted_nb_enabled_validators);
 
-        // Extract the expected validators hash of the trusted header from the valid validators hash proof.
+        // Extract the expected trusted validators hash from the valid validators hash proof.
         let expected_val_hash = trusted_validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
 
+        // Confirm the computed validators hash matches the expected hash.
         self.assert_is_equal(computed_val_hash, expected_val_hash);
 
-        // Indicator for each trusted validator whether it is present on the target header.
+        // Indicator for each trusted validator to determine if it is present in the target header.
         let mut trusted_validator_on_target_header = vec![self._false(); VALIDATOR_SET_SIZE_MAX];
 
-        // Get an indicator list of trusted validators, with their flags set to true if they
-        // signed the target block. The validators are potentially out of order, so we need to
-        // iterate through the entire list.
+        // Generate a list indicating which trusted validators signed the target block. Account for
+        // disorder in the validators list by iterating through all validators to match public keys and
+        // signed status.
         for i in 0..VALIDATOR_SET_SIZE_MAX {
             let signed_target_header = validators[i].signed;
 
-            // If a validator
+            // For each target validator, mark the corresponding trusted validator as present if the public keys match
+            // and the target validator has signed the block.
             for j in 0..VALIDATOR_SET_SIZE_MAX {
                 let pubkey_match_idx = self.is_equal(
                     validators[i].pubkey.clone(),
