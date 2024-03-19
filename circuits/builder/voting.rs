@@ -33,13 +33,15 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         validator_voting_power: &[U64Variable],
         nb_enabled_validators: Variable,
     ) -> U64Variable {
+        assert_eq!(validator_voting_power.len(), VALIDATOR_SET_SIZE_MAX);
+
         // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
         let zero = self.zero();
         let false_var = self._false();
         let mut total = self.zero();
 
         let mut is_enabled = self._true();
-        for i in 0..validator_voting_power.len() {
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
             let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
 
             // If at_end, then the rest of the leaves (including this one) are disabled.
@@ -69,6 +71,9 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_numerator: &U64Variable,
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
+        assert_eq!(validator_voting_power.len(), VALIDATOR_SET_SIZE_MAX);
+        assert_eq!(in_group.len(), VALIDATOR_SET_SIZE_MAX);
+
         let zero = self.constant::<U64Variable>(0);
         let false_var = self._false();
 
