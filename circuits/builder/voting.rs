@@ -35,6 +35,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
     ) -> U64Variable {
         // Note: This can be made more efficient by implementing the add_many_u32 gate in plonky2x.
         let zero = self.zero();
+        let false_var = self._false();
         let mut total = self.zero();
 
         let mut is_enabled = self._true();
@@ -52,7 +53,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             // Confirm total + val does not overflow.
             let total_plus_val = self.add(total, val);
             let overflow = self.lt(total_plus_val, total);
-            self.assert_is_equal(overflow, false);
+            self.assert_is_equal(overflow, false_var);
 
             total = total_plus_val;
         }
@@ -69,6 +70,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
         threshold_denominator: &U64Variable,
     ) -> BoolVariable {
         let zero = self.constant::<U64Variable>(0);
+        let false_var = self._false();
 
         let mut accumulated_voting_power = self.constant::<U64Variable>(0);
         // Accumulate the voting power from the enabled validators.
@@ -78,7 +80,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVoting for CircuitBuilder<
             // Confirm accumulated_voting_power + select_voting_power does not overflow.
             let accumulated_plus_select = self.add(accumulated_voting_power, select_voting_power);
             let overflow = self.lt(accumulated_plus_select, accumulated_voting_power);
-            self.assert_is_equal(overflow, false);
+            self.assert_is_equal(overflow, false_var);
 
             accumulated_voting_power = accumulated_plus_select;
         }
