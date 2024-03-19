@@ -81,9 +81,7 @@ pub struct ValidatorVariable {
     pub present_on_trusted_header: BoolVariable,
 }
 
-/// A validator hash field is a struct containing the pubkey, voting power, validator byte length,
-/// and enabled flag of a validator. A validator is marked as enabled if it is a part of the
-/// validator set for the specified block height.
+/// A validator hash field is a struct containing the pubkey, voting power & validator byte length.
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(ValidatorHashField)]
 pub struct ValidatorHashFieldVariable {
