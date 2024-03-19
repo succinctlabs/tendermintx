@@ -66,8 +66,8 @@ pub trait TendermintVerify<L: PlonkParameters<D>, const D: usize> {
         nb_enabled_validators: Variable,
     ) -> TendermintHashVariable;
 
-    /// Verify the set of validators from the target block comprise more than 1/3 of the voting
-    /// power on the trusted block.
+    /// Verify the set of validators who've signed on the commit from the target block comprise more
+    /// than 1/3 of the voting power on the trusted block.
     fn verify_trusted_validators<const VALIDATOR_SET_SIZE_MAX: usize>(
         &mut self,
         validators: &ArrayVariable<ValidatorVariable, VALIDATOR_SET_SIZE_MAX>,
@@ -534,8 +534,8 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         // skip distance.
         self.verify_skip_distance(skip_max, &trusted_block, &target_block);
 
-        // Verify the set of validators from the target block comprise more than 1/3 of the voting
-        // power on the trusted block.
+        // Verify the set of validators who've signed on the commit from the target block comprise
+        // more than 1/3 of the voting power on the trusted block.
         self.verify_trusted_validators(
             &skip.target_block_validators,
             trusted_header_hash,
