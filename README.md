@@ -14,9 +14,9 @@ There are two entrypoints to a `TendermintX` contract, `step` and `skip`.
 
 `skip` is used to jump from the current header to a non-consecutive header.
 
-For example, let's say block N has already been proven in the light client, and we want to prove block N+10. If validators from block N represent more than 1/3 of the voting power in block N+10, then we can skip from block N to block N+10, as long as 1) the validators from the trusted block have signed the new block, and 2) the new block is valid.
+For example, let's say block N has already been proven in the light client, and we want to prove block N+10. We can skip from block N to block N+10 if 1) the validators who have signed the commit for block N+10 comprise > 1/3 of the voting power on block N and 2) validators comprimising > 2/3 of the voting power on block N+10 have signed the commit for block N+10.
 
-The methodology for doing so is described in the section 2.3 of [A Tendermint Light Client](https://arxiv.org/pdf/2010.07031.pdf).
+The methodology for doing so is described in the section 6 of [A Tendermint Light Client](https://arxiv.org/pdf/2010.07031.pdf).
 
 ### step
 

@@ -62,11 +62,10 @@ pub type BlockIDInclusionProofVariable =
     MerkleInclusionProofVariable<HEADER_PROOF_DEPTH, PROTOBUF_BLOCK_ID_SIZE_BYTES>;
 
 /// A validator is a struct containing the pubkey, signature, message, message byte length, voting
-/// power, validator byte length, and three flags: enabled, signed, and present_on_trusted_header.
+/// power, validator byte length, and three flags: enabled, and signed..
 ///
 /// A validator is marked as enabled if it is a part of the validator set for the specified block.
-/// A validator is marked as signed if it has signed the block. A validator is marked as present on
-/// trusted header if it is a part of the validator set for the trusted header (only used in skip).
+/// A validator is marked as signed if it has signed the block.
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(ValidatorType)]
 pub struct ValidatorVariable {
@@ -77,13 +76,9 @@ pub struct ValidatorVariable {
     pub voting_power: U64Variable,
     pub validator_byte_length: Variable,
     pub signed: BoolVariable,
-    // Only used in skip circuit.
-    pub present_on_trusted_header: BoolVariable,
 }
 
-/// A validator hash field is a struct containing the pubkey, voting power, validator byte length,
-/// and enabled flag of a validator. A validator is marked as enabled if it is a part of the
-/// validator set for the specified block height.
+/// A validator hash field is a struct containing the pubkey, voting power & validator byte length.
 #[derive(Debug, Clone, CircuitVariable)]
 #[value_name(ValidatorHashField)]
 pub struct ValidatorHashFieldVariable {
