@@ -64,9 +64,11 @@ There are currently Tendermint X light clients tracking the following networks o
 
 10. Open the code for your fork of `TendermintX` again.
 
-11. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+11. Fetch the trusted initialization parameters of the Tendermint X light client from a chain RPC. Add `TENDERMINT_RPC_URL` for your chain to your `.env` and then run `cargo run --bin genesis -- --block N`, where N is the initialization height of the light client. `N` and the corresponding hash of block `N` will be used as `GENESIS_HEIGHT` and `GENESIS_HEADER` in `contracts/.env` in the next step.
 
-12. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
+12. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
+
+13. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
 
 ```
 forge install
