@@ -15,6 +15,10 @@ name = "skip"
 path = "bin/skip.rs"
 
 [[bin]]
+name = "genesis"
+path = "bin/genesis.rs"
+
+[[bin]]
 name = "tendermintx"
 path = "bin/tendermintx.rs"
 
