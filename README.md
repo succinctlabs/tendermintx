@@ -47,7 +47,7 @@ This is rarely used, as `step` will only be invoked when the validator set chang
 
 4. Update `bin/skip.rs` and `bin/step.rs` to use your new chain config instead of `CelestiaConfig`.
 
-### Set up Circuits on Succinct Platform
+### Set up circuits on the Succinct Platform
 
 
 1. Go to the [Succinct Platform](https://alpha.succinct.xyz).
@@ -75,7 +75,7 @@ forge install
 forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX --broadcast
 ```
 
-### Continuously update the light client
+### Run the light client operator
 
 1. Update `.env` according to `.env.example`.
     1. Get `SUCCINCT_API_KEY` from your Succinct Platform user/project settings.
