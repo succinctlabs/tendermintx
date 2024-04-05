@@ -63,7 +63,7 @@ This is rarely used, as `step` will only be invoked when the validator set chang
 6. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
 
 ### Deploy Tendermint X Contracts
-1. Open the code for your fork of `TendermintX` again.
+1. Open the code for your fork of `tendermintx` again.
 
 2. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
 
