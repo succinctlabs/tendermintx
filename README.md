@@ -24,49 +24,50 @@ The methodology for doing so is described in the section 6 of [A Tendermint Ligh
 
 This is rarely used, as `step` will only be invoked when the validator set changes by more than 2/3 in a single block.
 
-## Deployment
+## Deploy Tendermint X for a chain
 
-The circuits are currently available on Succinct X [here](https://alpha.succinct.xyz/succinctlabs/tendermintx).
+### Tendermint X Circuits
 
-There are currently Tendermint X light clients tracking the following networks on Goerli:
+1. Fork this repository: https://github.com/succinctlabs/tendermintx
 
-- [dYdX](https://goerli.etherscan.io/address/0x59eE2D9CFaC933c79Cc1D1d6767679636c0b539D#events)
-- [Osmosis](https://goerli.etherscan.io/address/0xd4a723C4dd8a961ACcbC5a42f05862C63B32B701#events)
-- [Celestia Mainnet](https://goerli.etherscan.io/address/0x0E9187150C3eEFcBce4E2a15aEC0136f45f4d6B2#events)
+2. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `circuits/consts.rs`. Push the changes to your fork.
 
-## Benchmarks
+3. Add a new circuit config for your Tendermint chain in `circuits/config.rs`. Replace `celestia` with the chain ID (network name) of your Tendermint chain.
+    ```rust
+    /// Example chain config for Celestia
+    pub const CELESTIA_CHAIN_ID_BYTES: &[u8] = b"celestia";
+    pub const CELESTIA_CHAIN_ID_SIZE_BYTES: usize = CELESTIA_CHAIN_ID_BYTES.len();
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct CelestiaConfig;
+    impl TendermintConfig<CELESTIA_CHAIN_ID_SIZE_BYTES> for CelestiaConfig {
+        const CHAIN_ID_BYTES: &'static [u8] = CELESTIA_CHAIN_ID_BYTES;
+        const SKIP_MAX: usize = SKIP_MAX;
+    }   
+    ```
 
-|  Chain   | # of Validators | plonky2 Proving Time | End to End Proving Time |
-| :------: | :-------------: | :------------------: | :---------------------: |
-|   dYdX   |       60        |        2 mins        |         5 mins          |
-| Celestia |       100       |        5 mins        |         8 mins          |
-| Osmosis  |       150       |        9 mins        |         12 mins         |
+4. Update `bin/skip.rs` and `bin/step.rs` to use your new chain config instead of `CelestiaConfig`.
 
-## Integrate Tendermint X
+### Set up Circuits on Succinct Platform
 
-1. Request a Succinct Platform API Key: https://alpha.succinct.xyz/partner
 
-2. Fork this repository: https://github.com/succinctlabs/tendermintx
+1. Go to the [Succinct Platform](https://alpha.succinct.xyz).
 
-3. Update the `VALIDATOR_SET_SIZE_MAX` to match that of your Tendermint chain in `circuits/consts.rs` (ex. 150 for Osmosis, 60 for dYdX). Push the changes to your fork.
+2. Sign up for an account on the platform.
 
-4. Go to the [Succinct Platform](https://alpha.succinct.xyz).
+3. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
 
-5. Sign up for an account on the platform.
+4. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
 
-6. Create a new project on the Succinct Platform by importing your fork of `tendermintx`.
+5. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
 
-7. In your project on the platform, go to `Releases`. Create two new releases, one for `step` and one for `skip`. Use the `main` branch and set the entrypoint accordingly.
+6. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
 
-8. In your project on the platform, go to `Settings`. Set `TENDERMINT_RPC_URL` in `Environment Variables`. This should be a valid full node RPC for your Tendermint chain.
+### Deploy Tendermint X Contracts
+1. Open the code for your fork of `TendermintX` again.
 
-9. Once the releases are completed building, go to `Deployments` to deploy the verifiers for `step` and `skip`.
+2. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
 
-10. Open the code for your fork of `TendermintX` again.
-
-11. Update `contracts/.env` accoridng to `contracts/.env.example`. Note: The genesis parameters are typically sourced from a recent header from your Tendermint chain.
-
-12. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
+3. Deploy your `TendermintX` contract and initialize it with your function ID & genesis parameters using the commands below.
 
 ```
 forge install
@@ -74,15 +75,19 @@ forge install
 forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify TendermintX --broadcast
 ```
 
-13. Update `.env` according to `.env.example`.
+### Continuously update the light client
 
-14. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
+1. Update `.env` according to `.env.example`.
+    1. Get `SUCCINCT_API_KEY` from your user/project settings.
+    2. `SUCCINCT_RPC_URL`=`https://alpha.succinct.xyz/api`
+
+2. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
 
 ```
 cargo run --bin tendermintx --release
 ```
 
-14. Now, go the platform to monitor the status of your proofs. Generating a Tendermint LC proof takes anywhere from 4-15 minutes, depending on your validator set size.
+3. Now, go the platform to monitor the status of your proofs. Generating a Tendermint LC proof takes anywhere from 4-10 minutes, depending on your validator set size.
 
 ## Misc
 
