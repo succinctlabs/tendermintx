@@ -78,7 +78,7 @@ forge script script/Deploy.s.sol --rpc-url $ETHEREUM_RPC_URL --private-key $PRIV
 ### Continuously update the light client
 
 1. Update `.env` according to `.env.example`.
-    1. Get `SUCCINCT_API_KEY` from your user/project settings.
+    1. Get `SUCCINCT_API_KEY` from your Succinct Platform user/project settings.
     2. `SUCCINCT_RPC_URL`=`https://alpha.succinct.xyz/api`
 
 2. Run `TendermintX` script to update the light client continuously (currently set to update once every 4 hours).
