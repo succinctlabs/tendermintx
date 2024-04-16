@@ -219,7 +219,11 @@ mod tests {
         println!("next_header {:?}", next_header);
     }
 
-    fn test_skip_template<const MAX_VALIDATOR_SET_SIZE: usize>(
+    fn test_skip_template<
+        const MAX_VALIDATOR_SET_SIZE: usize,
+        const CHAIN_ID_SIZE_BYTES: usize,
+        C: TendermintConfig,
+    >(
         trusted_header: [u8; 32],
         trusted_block: u64,
         target_block: u64,
@@ -230,9 +234,7 @@ mod tests {
         let mut builder = DefaultBuilder::new();
 
         log::debug!("Defining circuit");
-        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, Mocha4Config>::define(
-            &mut builder,
-        );
+        SkipCircuit::<MAX_VALIDATOR_SET_SIZE, CHAIN_ID_SIZE_BYTES, C>::define(&mut builder);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -310,7 +312,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_skip_small_fails() {
+    fn test_fuelstream_skip_small() {
         const MAX_VALIDATOR_SET_SIZE: usize = 2;
         let trusted_header: [u8; 32] =
             hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
@@ -319,7 +321,29 @@ mod tests {
                 .unwrap();
         let trusted_height = 900u64;
         let target_height = 902u64;
-        test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, TendermintConfig>(
+            trusted_header,
+            trusted_height,
+            target_height,
+        )
+    }
+
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_mocha_skip_small() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let trusted_header: [u8; 32] =
+            hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 900u64;
+        let target_height = 902u64;
+        test_skip_template::<MAX_VALIDATOR_SET_SIZE, MOCHA_4_CHAIN_ID_SIZE_BYTES, TendermintConfig>(
+            trusted_header,
+            trusted_height,
+            target_height,
+        )
     }
 
     #[test]
