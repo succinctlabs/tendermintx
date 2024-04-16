@@ -254,34 +254,34 @@ mod tests {
         println!("target_header {:?}", target_header);
     }
 
-    // #[test]
-    // #[cfg_attr(feature = "ci", ignore)]
-    // fn test_skip_hint() {
-    //     const MAX_VALIDATOR_SET_SIZE: usize = 2;
-    //     let trusted_header: [u8; 32] =
-    //         hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
-    //             .unwrap()
-    //             .try_into()
-    //             .unwrap();
-    //     let trusted_height = 900u64;
-    //     let target_height = 903u64;
+    #[test]
+    #[cfg_attr(feature = "ci", ignore)]
+    fn test_skip_hint() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let trusted_header: [u8; 32] =
+            hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 900u64;
+        let target_height = 903u64;
 
-    //     let mut builder = DefaultBuilder::new();
+        let mut builder = DefaultBuilder::new();
 
-    //     let trusted_block = builder.constant::<U64Variable>(trusted_height);
-    //     let trusted_header_hash = builder.constant::<Bytes32Variable>(trusted_header);
-    //     let target_block = builder.constant::<U64Variable>(target_height);
+        let trusted_block = builder.constant::<U64Variable>(trusted_height);
+        let trusted_header_hash = builder.constant::<Bytes32Variable>(trusted_header);
+        let target_block = builder.constant::<U64Variable>(target_height);
 
-    //     let mut input_stream = VariableStream::new();
-    //     input_stream.write(&trusted_block);
-    //     input_stream.write(&trusted_header_hash);
-    //     input_stream.write(&target_block);
-    //     let output_stream = builder.async_hint(
-    //         input_stream,
-    //         SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
-    //     );
-    //     let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
-    // }
+        let mut input_stream = VariableStream::new();
+        input_stream.write(&trusted_block);
+        input_stream.write(&trusted_header_hash);
+        input_stream.write(&target_block);
+        let output_stream = builder.async_hint(
+            input_stream,
+            SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
+        );
+        let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
+    }
 
     #[tokio::test]
     #[cfg_attr(feature = "ci", ignore)]

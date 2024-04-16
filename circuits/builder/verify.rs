@@ -312,7 +312,6 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             let not_at_end = self.not(at_end);
             is_enabled = self.and(not_at_end, is_enabled);
 
-            // TODO: This could be because not all signatures are from the same round.
             self.verify_validator_signature_data(
                 header,
                 height,
@@ -562,53 +561,4 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             &skip.target_block_round,
         );
     }
-}
-
-// To run tests with logs (i.e. to see proof generation time), set the environment variable `RUST_LOG=debug` before the test command.
-// Alternatively, add env::set_var("RUST_LOG", "debug") to the top of the test.
-#[cfg(test)]
-pub(crate) mod tests {
-
-    use ethers::types::H256;
-    use plonky2x::prelude::DefaultBuilder;
-    use subtle_encoding::hex;
-
-    use super::*;
-
-    #[test]
-    fn test_verify_hash_in_message() {
-        // This is a test case generated from block 144094 of Celestia's Mocha 3 testnet
-        // Block Hash: 8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c (needs to be lower case)
-        // Signed Message (from the last validator): 6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33
-        // No round exists in the message that was signed above.
-
-        env_logger::try_init().unwrap_or_default();
-
-        // Define the circuit
-        let mut builder = DefaultBuilder::new();
-        let message = builder.read::<ValidatorMessageVariable>();
-        let header_hash = builder.read::<TendermintHashVariable>();
-        let round = builder.read::<U64Variable>();
-
-        let verified = builder.verify_hash_in_message(&message, header_hash, round);
-
-        builder.write(verified);
-        let circuit = builder.build();
-
-        let header_hash =
-            hex::decode("8909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c")
-                .unwrap();
-        let header_hash_h256 = H256::from_slice(&header_hash);
-        let mut signed_message = hex::decode("6b080211de3202000000000022480a208909e1b73b7d987e95a7541d96ed484c17a4b0411e98ee4b7c890ad21302ff8c12240801122061263df4855e55fcab7aab0a53ee32cf4f29a1101b56de4a9d249d44e4cf96282a0b089dce84a60610ebb7a81932076d6f6368612d33").unwrap();
-        signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
-        let mut input = circuit.input();
-        input.write::<ValidatorMessageVariable>(signed_message.try_into().unwrap());
-        input.write::<TendermintHashVariable>(header_hash_h256);
-        input.write::<U64Variable>(0u64);
-        let (_, mut output) = circuit.prove(&input);
-        let verified = output.read::<BoolVariable>();
-        assert!(verified);
-    }
-
-    // TODO: Add test for verifying validator signatures from a commit that has round != 0.
 }

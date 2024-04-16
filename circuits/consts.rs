@@ -26,6 +26,8 @@ pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
 pub const PROTOBUF_VARINT_SIZE_BYTES: usize = VARINT_BYTES_LENGTH_MAX + 1;
 
 /// The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
+/// This is the maximum size for v0.38.0.
+/// TODO: Confirm this is the correct maximum size of the RawCanonicalVote struct.
 pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 168;
 
 // Header indices for the Merkle tree.

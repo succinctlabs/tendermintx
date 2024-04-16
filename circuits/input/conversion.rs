@@ -27,6 +27,7 @@ fn verify_validator_signature_data_round_zero(
 ) {
 }
 
+// Find the subarray within an array.
 fn find_subarray<const N: usize>(signed_message: &[u8], subarray: &[u8]) -> Option<usize> {
     for i in 0..signed_message.len() - N {
         if signed_message[i..i + N] == *subarray {
@@ -53,15 +54,9 @@ fn get_validator_signature_data_indices(
     commit: &Commit,
 ) -> ValidatorSignatureDataIndices {
     let vote = get_vote_from_commit_sig(commit_sig, *val_idx, commit).unwrap();
-    debug!(
-        "Round for the vote for val_idx {:?} is: {:?}",
-        val_idx.value(),
-        vote.round.value()
-    );
     let signed_vote =
         SignedVote::from_vote(vote.clone(), chain_id.clone()).expect("missing signature");
     let signed_message = signed_vote.sign_bytes();
-    debug!("signed_message: {:?}", signed_message);
 
     // Get the header hash.
     let header_hash = signed_header.header.hash();
@@ -71,7 +66,6 @@ fn get_validator_signature_data_indices(
     // Get the precommit message.
     let expected_precommit = [8u8, 2u8];
     let precommit_idx = find_subarray::<2>(&signed_message, &expected_precommit).unwrap();
-    debug!("precommit_idx: {:?}", precommit_idx);
 
     // Locate the encoded height.
     let height_idx = precommit_idx + 3;
@@ -113,19 +107,18 @@ fn get_signed_message_data<F: RichField>(
     EDDSASignatureVariableValue<F>,
 ) {
     let vote = get_vote_from_commit_sig(commit_sig, *val_idx, commit).unwrap();
-    // debug!(
-    //     "Round for the vote for val_idx {:?} is: {:?}",
-    //     val_idx.value(),
-    //     vote.round.value()
-    // );
     let signed_vote =
         SignedVote::from_vote(vote.clone(), chain_id.clone()).expect("missing signature");
     let mut padded_signed_message = signed_vote.sign_bytes();
     let msg_length = padded_signed_message.len();
-    // debug!("msg_length: {:?}", msg_length);
+
+    if msg_length > VALIDATOR_MESSAGE_BYTES_LENGTH_MAX {
+        panic!(
+            "The length of the validator's signed message is > VALIDATOR_MESSAGE_BYTES_LENGTH_MAX"
+        );
+    }
 
     padded_signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
-    // debug!("signed_message: {:?}", padded_signed_message);
 
     let sig = signed_vote.signature();
 
@@ -176,6 +169,8 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
                 &signed_header.commit,
             );
 
+            // Get the indices of the relevant data in the validator's signed message. This is helpful
+            // for defining the constants in the circuit of where to check for the data.
             let indices = get_validator_signature_data_indices(
                 &signed_header,
                 &signed_header.header.chain_id,
