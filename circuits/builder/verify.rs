@@ -535,19 +535,19 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
         target_block: U64Variable,
         skip: &VerifySkipVariable<VALIDATOR_SET_SIZE_MAX>,
     ) {
-        // // Verify the target block is non-sequential with the trusted block and within maximum
-        // // skip distance.
-        // self.verify_skip_distance(skip_max, &trusted_block, &target_block);
+        // Verify the target block is non-sequential with the trusted block and within maximum
+        // skip distance.
+        self.verify_skip_distance(skip_max, &trusted_block, &target_block);
 
-        // // Verify the set of validators who've signed on the commit from the target block comprise
-        // // more than 1/3 of the voting power on the trusted block.
-        // self.verify_trusted_validators(
-        //     &skip.target_block_validators,
-        //     trusted_header_hash,
-        //     &skip.trusted_header_validator_hash_proof,
-        //     &skip.trusted_header_validator_hash_fields,
-        //     skip.trusted_block_nb_validators,
-        // );
+        // Verify the set of validators who've signed on the commit from the target block comprise
+        // more than 1/3 of the voting power on the trusted block.
+        self.verify_trusted_validators(
+            &skip.target_block_validators,
+            trusted_header_hash,
+            &skip.trusted_header_validator_hash_proof,
+            &skip.trusted_header_validator_hash_fields,
+            skip.trusted_block_nb_validators,
+        );
 
         // Verify the target Tendermint consensus block.
         self.verify_header::<VALIDATOR_SET_SIZE_MAX, CHAIN_ID_SIZE_BYTES>(
