@@ -82,6 +82,8 @@ impl<const MAX_VALIDATOR_SET_SIZE: usize, L: PlonkParameters<D>, const D: usize>
             )
             .await;
 
+        assert!(result.target_block_validators.len() == MAX_VALIDATOR_SET_SIZE);
+
         let verify_skip_struct = VerifySkipStruct::<MAX_VALIDATOR_SET_SIZE, L::Field> {
             target_header: result.target_header.into(),
             target_block_validators: result.target_block_validators,
@@ -249,17 +251,46 @@ mod tests {
         println!("target_header {:?}", target_header);
     }
 
+    // #[test]
+    // #[cfg_attr(feature = "ci", ignore)]
+    // fn test_skip_hint() {
+    //     const MAX_VALIDATOR_SET_SIZE: usize = 2;
+    //     let trusted_header: [u8; 32] =
+    //         hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
+    //             .unwrap()
+    //             .try_into()
+    //             .unwrap();
+    //     let trusted_height = 900u64;
+    //     let target_height = 903u64;
+
+    //     let mut builder = DefaultBuilder::new();
+
+    //     let trusted_block = builder.constant::<U64Variable>(trusted_height);
+    //     let trusted_header_hash = builder.constant::<Bytes32Variable>(trusted_header);
+    //     let target_block = builder.constant::<U64Variable>(target_height);
+
+    //     let mut input_stream = VariableStream::new();
+    //     input_stream.write(&trusted_block);
+    //     input_stream.write(&trusted_header_hash);
+    //     input_stream.write(&target_block);
+    //     let output_stream = builder.async_hint(
+    //         input_stream,
+    //         SkipOffchainInputs::<MAX_VALIDATOR_SET_SIZE> {},
+    //     );
+    //     let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
+    // }
+
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
-    fn test_skip_small() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+    fn test_skip_small_fails() {
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
         let trusted_header: [u8; 32] =
-            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let trusted_height = 10000u64;
-        let target_height = 10500u64;
+        let trusted_height = 900u64;
+        let target_height = 903u64;
         test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 

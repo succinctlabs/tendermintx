@@ -22,7 +22,7 @@ impl TendermintConfig<CELESTIA_CHAIN_ID_SIZE_BYTES> for CelestiaConfig {
 }
 
 /// Mocha-4's chain config.
-pub const MOCHA_4_CHAIN_ID_BYTES: &[u8] = b"mocha-4";
+pub const MOCHA_4_CHAIN_ID_BYTES: &[u8] = b"fuelsequencer-test-2";
 pub const MOCHA_4_CHAIN_ID_SIZE_BYTES: usize = MOCHA_4_CHAIN_ID_BYTES.len();
 #[derive(Debug, Clone, PartialEq)]
 pub struct Mocha4Config;
