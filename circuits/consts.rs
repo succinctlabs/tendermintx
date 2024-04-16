@@ -26,7 +26,7 @@ pub const VARINT_BYTES_LENGTH_MAX: usize = 9;
 pub const PROTOBUF_VARINT_SIZE_BYTES: usize = VARINT_BYTES_LENGTH_MAX + 1;
 
 /// The maximum number of bytes in a validator message (CanonicalVote toSignBytes).
-pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 124;
+pub const VALIDATOR_MESSAGE_BYTES_LENGTH_MAX: usize = 168;
 
 // Header indices for the Merkle tree.
 pub const CHAIN_ID_INDEX: usize = 1;

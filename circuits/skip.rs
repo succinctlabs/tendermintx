@@ -150,11 +150,12 @@ mod tests {
 
     use ethers::types::H256;
     use ethers::utils::hex;
-    use plonky2x::backend::circuit::PublicInput;
-    use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
+    use plonky2x::backend::circuit::{DefaultParameters, PublicInput};
+    use plonky2x::prelude::{DefaultBuilder, GateRegistry, GoldilocksField, HintRegistry};
 
     use super::*;
     use crate::config::{Mocha4Config, MOCHA_4_CHAIN_ID_SIZE_BYTES};
+    use crate::input::InputDataMode;
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -280,6 +281,33 @@ mod tests {
     //     let skip_variable = output_stream.read::<VerifySkipVariable<MAX_VALIDATOR_SET_SIZE>>(self);
     // }
 
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_get_skip_inputs() {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+        type F = GoldilocksField;
+        let mut data_fetcher = InputDataFetcher {
+            mode: InputDataMode::Rpc,
+            ..Default::default()
+        };
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
+        let trusted_header: [u8; 32] =
+            hex::decode("0AC3CCAA9DA05DEEEBF6683152453A0BD7678155A6A5857C0AE34D0C8F8FEE4B")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let trusted_height = 900u64;
+        let target_height = 904u64;
+        let result = data_fetcher
+            .get_skip_inputs::<MAX_VALIDATOR_SET_SIZE, F>(
+                trusted_height,
+                H256::from_slice(trusted_header.as_slice()),
+                target_height,
+            )
+            .await;
+    }
+
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_small_fails() {
@@ -290,7 +318,7 @@ mod tests {
                 .try_into()
                 .unwrap();
         let trusted_height = 900u64;
-        let target_height = 903u64;
+        let target_height = 902u64;
         test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 

@@ -258,79 +258,80 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintVerify<L, D> for CircuitBu
             ArrayVariable::<CompressedEdwardsYVariable, VALIDATOR_SET_SIZE_MAX>::new(pubkeys),
         );
 
-        // // Compute the validators hash of the validators from the necessary fields.
-        // let validator_hash_fields: Vec<ValidatorHashFieldVariable> = validators
-        //     .as_vec()
-        //     .iter()
-        //     .map(|v| ValidatorHashFieldVariable {
-        //         pubkey: v.pubkey.clone(),
-        //         voting_power: v.voting_power,
-        //         validator_byte_length: v.validator_byte_length,
-        //     })
-        //     .collect();
-        // let computed_validators_hash = self.compute_validators_hash(
-        //     &ArrayVariable::<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>::new(
-        //         validator_hash_fields,
-        //     ),
-        //     nb_enabled_validators,
-        // );
+        // Compute the validators hash of the validators from the necessary fields.
+        let validator_hash_fields: Vec<ValidatorHashFieldVariable> = validators
+            .as_vec()
+            .iter()
+            .map(|v| ValidatorHashFieldVariable {
+                pubkey: v.pubkey.clone(),
+                voting_power: v.voting_power,
+                validator_byte_length: v.validator_byte_length,
+            })
+            .collect();
+        let computed_validators_hash = self.compute_validators_hash(
+            &ArrayVariable::<ValidatorHashFieldVariable, VALIDATOR_SET_SIZE_MAX>::new(
+                validator_hash_fields,
+            ),
+            nb_enabled_validators,
+        );
 
-        // // Assert the computed validator hash matches the expected validator hash.
-        // let extracted_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
-        // self.assert_is_equal(extracted_hash, computed_validators_hash);
+        // Assert the computed validator hash matches the expected validator hash.
+        let extracted_hash: Bytes32Variable = validator_hash_proof.leaf[2..2 + HASH_SIZE].into();
+        self.assert_is_equal(extracted_hash, computed_validators_hash);
 
-        // // Assert the validators hash came from this header.
-        // let val_hash_path = self.get_path_to_leaf(VALIDATORS_HASH_INDEX);
-        // let header_from_validator_root_proof =
-        //     self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path);
-        // self.assert_is_equal(*header, header_from_validator_root_proof);
+        // Assert the validators hash came from this header.
+        let val_hash_path = self.get_path_to_leaf(VALIDATORS_HASH_INDEX);
+        let header_from_validator_root_proof =
+            self.get_root_from_merkle_proof(validator_hash_proof, &val_hash_path);
+        self.assert_is_equal(*header, header_from_validator_root_proof);
 
-        // // Assert signed validators comprise more than 2/3 of the total voting power.
-        // let threshold_numerator = self.constant::<U64Variable>(2);
-        // let threshold_denominator = self.constant::<U64Variable>(3);
+        // Assert signed validators comprise more than 2/3 of the total voting power.
+        let threshold_numerator = self.constant::<U64Variable>(2);
+        let threshold_denominator = self.constant::<U64Variable>(3);
 
-        // let validator_voting_power = validators
-        //     .as_vec()
-        //     .iter()
-        //     .map(|v| v.voting_power)
-        //     .collect::<Vec<_>>();
-        // self.verify_voting_threshold::<VALIDATOR_SET_SIZE_MAX>(
-        //     &validator_voting_power,
-        //     nb_enabled_validators,
-        //     &threshold_numerator,
-        //     &threshold_denominator,
-        //     &signed,
-        // );
+        let validator_voting_power = validators
+            .as_vec()
+            .iter()
+            .map(|v| v.voting_power)
+            .collect::<Vec<_>>();
+        self.verify_voting_threshold::<VALIDATOR_SET_SIZE_MAX>(
+            &validator_voting_power,
+            nb_enabled_validators,
+            &threshold_numerator,
+            &threshold_denominator,
+            &signed,
+        );
 
-        // // Verify each validator's signature is valid.
-        // let mut is_enabled = self._true();
-        // for i in 0..VALIDATOR_SET_SIZE_MAX {
-        //     let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
+        // Verify each validator's signature is valid.
+        let mut is_enabled = self._true();
+        for i in 0..VALIDATOR_SET_SIZE_MAX {
+            let idx = self.constant::<Variable>(L::Field::from_canonical_usize(i));
 
-        //     // If at_end, then the rest of the leaves (including this one) are disabled.
-        //     let at_end = self.is_equal(idx, nb_enabled_validators);
-        //     let not_at_end = self.not(at_end);
-        //     is_enabled = self.and(not_at_end, is_enabled);
+            // If at_end, then the rest of the leaves (including this one) are disabled.
+            let at_end = self.is_equal(idx, nb_enabled_validators);
+            let not_at_end = self.not(at_end);
+            is_enabled = self.and(not_at_end, is_enabled);
 
-        //     self.verify_validator_signature_data(
-        //         header,
-        //         height,
-        //         &messages[i],
-        //         &is_enabled,
-        //         &signed[i],
-        //         round,
-        //     );
-        // }
+            // TODO: This could be because not all signatures are from the same round.
+            self.verify_validator_signature_data(
+                header,
+                height,
+                &messages[i],
+                &is_enabled,
+                &signed[i],
+                round,
+            );
+        }
 
-        // // Verify the chain ID against the header.
-        // self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(
-        //     expected_chain_id_bytes,
-        //     chain_id_proof,
-        //     header,
-        // );
+        // Verify the chain ID against the header.
+        self.verify_chain_id::<CHAIN_ID_SIZE_BYTES>(
+            expected_chain_id_bytes,
+            chain_id_proof,
+            header,
+        );
 
-        // // Verify the block's height is correct.
-        // self.verify_block_height(*header, height_proof.clone(), *height);
+        // Verify the block's height is correct.
+        self.verify_block_height(*header, height_proof.clone(), *height);
     }
 
     fn compute_validators_hash<const VALIDATOR_SET_SIZE_MAX: usize>(
