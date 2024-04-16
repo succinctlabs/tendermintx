@@ -150,9 +150,11 @@ mod tests {
     use ethers::utils::hex;
     use plonky2x::backend::circuit::PublicInput;
     use plonky2x::prelude::{DefaultBuilder, GateRegistry, HintRegistry};
+    use tendermint::block::signed_header::SignedHeader;
 
     use super::*;
     use crate::config::{Mocha4Config, MOCHA_4_CHAIN_ID_SIZE_BYTES};
+    use crate::input::InputDataMode;
 
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
@@ -249,17 +251,57 @@ mod tests {
         println!("target_header {:?}", target_header);
     }
 
+    #[tokio::test]
+    #[cfg_attr(feature = "ci", ignore)]
+    async fn test_mocha_skip_small() {
+        let data_fetcher = InputDataFetcher {
+            mode: InputDataMode::Rpc,
+            ..Default::default()
+        };
+
+        // Loop from start_block until a block is found with a non-zero round.
+        let mut start_block = 1;
+
+        // Fetch 300 headers at a time and check if any of them have a non-zero round.
+        loop {
+            let mut handles = Vec::new();
+            for i in 0..300 {
+                handles.push(data_fetcher.get_signed_header_from_number(start_block + i));
+            }
+            // Await all the handles with futures join_all
+            let signed_headers: Vec<SignedHeader> = futures::future::join_all(handles).await;
+
+            // Filter out the ones with a non-zero round
+            let signed_headers = signed_headers
+                .iter()
+                .filter(|signed_header| signed_header.commit.round.value() != 0)
+                .collect::<Vec<_>>();
+
+            if signed_headers.is_empty() {
+                start_block += 300;
+                println!("Loop");
+                continue;
+            } else {
+                println!(
+                    "Found a block with a non-zero round: {:?}",
+                    signed_headers[0].header.height.value()
+                );
+                break;
+            }
+        }
+    }
+
     #[test]
     #[cfg_attr(feature = "ci", ignore)]
     fn test_skip_small() {
-        const MAX_VALIDATOR_SET_SIZE: usize = 4;
+        const MAX_VALIDATOR_SET_SIZE: usize = 2;
         let trusted_header: [u8; 32] =
-            hex::decode("A0123D5E4B8B8888A61F931EE2252D83568B97C223E0ECA9795B29B8BD8CBA2D")
+            hex::decode("B93BBE20A0FBFDF955811B6420F8433904664D45DB4BF51022BE4200C1A1680D")
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let trusted_height = 10000u64;
-        let target_height = 10500u64;
+        let trusted_height = 1u64;
+        let target_height = 1155u64;
         test_skip_template::<MAX_VALIDATOR_SET_SIZE>(trusted_header, trusted_height, target_height)
     }
 

@@ -1,4 +1,5 @@
-use ethers::types::U256;
+use ethers::types::{U256, U64};
+use log::debug;
 use plonky2x::frontend::curta::ec::point::CompressedEdwardsY;
 use plonky2x::frontend::ecc::curve25519::ed25519::eddsa::{
     EDDSASignatureVariableValue, DUMMY_PUBLIC_KEY, DUMMY_SIGNATURE,
@@ -17,9 +18,27 @@ use super::tendermint_utils::get_vote_from_commit_sig;
 use crate::consts::{VALIDATOR_BYTE_LENGTH_MAX, VALIDATOR_MESSAGE_BYTES_LENGTH_MAX};
 use crate::variables::*;
 
+fn find_subarray<const N: usize>(signed_message: &[u8], subarray: &[u8]) -> Option<usize> {
+    for i in 0..signed_message.len() - N {
+        if signed_message[i..i + N] == *subarray {
+            return Some(i);
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ValidatorSignatureDataIndices {
+    header_hash_idx: usize,
+    precommit_idx: usize,
+    height_idx: usize,
+    round_idx: Option<usize>,
+}
+
 /// Get the padded_message, message_length, and signature for the validator from a specific
 /// commit signature.
 fn get_signed_message_data<F: RichField>(
+    signed_header: &SignedHeader,
     chain_id: &Id,
     pubkey: &PublicKey,
     commit_sig: &CommitSig,
@@ -37,6 +56,10 @@ fn get_signed_message_data<F: RichField>(
     let msg_length = padded_signed_message.len();
 
     padded_signed_message.resize(VALIDATOR_MESSAGE_BYTES_LENGTH_MAX, 0u8);
+
+    let indices =
+        get_validator_signature_data_indices(signed_header, chain_id, commit_sig, val_idx, commit);
+    debug!("indices: {:?}", indices);
 
     let sig = signed_vote.signature();
 
@@ -79,6 +102,7 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
         if signed_header.commit.signatures[i].is_commit() {
             // Get the padded_message, message_length, and signature for the validator.
             let (padded_msg, msg_length, signature) = get_signed_message_data(
+                &signed_header,
                 &signed_header.header.chain_id,
                 &validator.pub_key,
                 &signed_header.commit.signatures[i],
@@ -134,6 +158,59 @@ pub fn get_validator_data_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: Ric
     }
 
     validators
+}
+
+fn get_validator_signature_data_indices(
+    signed_header: &SignedHeader,
+    chain_id: &Id,
+    commit_sig: &CommitSig,
+    val_idx: &ValidatorIndex,
+    commit: &Commit,
+) -> ValidatorSignatureDataIndices {
+    let vote = get_vote_from_commit_sig(commit_sig, *val_idx, commit).unwrap();
+    debug!(
+        "Round for the vote for val_idx {:?} is: {:?}",
+        val_idx.value(),
+        vote.round.value()
+    );
+    let signed_vote =
+        SignedVote::from_vote(vote.clone(), chain_id.clone()).expect("missing signature");
+    let signed_message = signed_vote.sign_bytes();
+    debug!("signed_message: {:?}", signed_message);
+
+    // Get the header hash.
+    let header_hash = signed_header.header.hash();
+    let header_hash_bytes = header_hash.as_bytes();
+    let header_hash_idx = find_subarray::<32>(&signed_message, &header_hash_bytes).unwrap();
+
+    // Get the precommit message.
+    let expected_precommit = [8u8, 2u8];
+    let precommit_idx = find_subarray::<2>(&signed_message, &expected_precommit).unwrap();
+    debug!("precommit_idx: {:?}", precommit_idx);
+
+    // Locate the encoded height.
+    let height_idx = precommit_idx + 3;
+    let height = U64::from_little_endian(&signed_message[height_idx..height_idx + 8]);
+    assert_eq!(height.as_u64(), signed_header.header.height.value());
+
+    if vote.round.value() == 0 {
+        return ValidatorSignatureDataIndices {
+            header_hash_idx,
+            precommit_idx,
+            height_idx,
+            round_idx: None,
+        };
+    } else {
+        let round_idx = height_idx + 9;
+        let round = U64::from_little_endian(&signed_message[round_idx..round_idx + 8]);
+        assert_eq!(round.as_u32(), vote.round.value());
+        return ValidatorSignatureDataIndices {
+            header_hash_idx,
+            precommit_idx,
+            height_idx,
+            round_idx: Some(round_idx),
+        };
+    }
 }
 
 pub fn validator_hash_field_from_block<const VALIDATOR_SET_SIZE_MAX: usize, F: RichField>(

@@ -97,14 +97,14 @@ impl InputDataFetcher {
     pub fn new(urls: Vec<String>, fixture_path: &str) -> Self {
         #[allow(unused_mut)]
         let mut mode;
-        #[cfg(test)]
-        {
-            mode = InputDataMode::Fixture;
-        }
-        #[cfg(not(test))]
-        {
-            mode = InputDataMode::Rpc;
-        }
+        // #[cfg(test)]
+        // {
+        // mode = InputDataMode::Fixture;
+        // }
+        // #[cfg(not(test))]
+        // {
+        mode = InputDataMode::Rpc;
+        // }
 
         Self {
             mode,
