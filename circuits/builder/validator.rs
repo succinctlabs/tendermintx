@@ -17,7 +17,7 @@ use crate::variables::{
 
 pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
     /// Verify that the round is non-negative.
-    fn verify_non_negative_round(
+    fn is_round_non_negative(
         &mut self,
         le_encoded_round: ArrayVariable<ByteVariable, 8>,
     ) -> BoolVariable;
@@ -36,8 +36,8 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         round: &U64Variable,
     );
 
-    /// Verify each validator's signature as if the round is 0 in the header.
-    fn verify_validator_signature_data_round_zero(
+    /// Verify each validator's signed message as if the round is 0 in the header.
+    fn is_signed_message_valid_round_zero(
         &mut self,
         header: &TendermintHashVariable,
         height: &U64Variable,
@@ -46,8 +46,8 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
         signed: &BoolVariable,
     ) -> BoolVariable;
 
-    /// Verify each validator's signature as if the round is non-zero in the header.
-    fn verify_validator_signature_data_round_nonzero(
+    /// Verify each validator's signed message as if the round is non-zero in the header.
+    fn is_signed_message_valid_round_nonzero(
         &mut self,
         header: &TendermintHashVariable,
         height: &U64Variable,
@@ -87,7 +87,7 @@ pub trait TendermintValidator<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for CircuitBuilder<L, D> {
-    fn verify_non_negative_round(
+    fn is_round_non_negative(
         &mut self,
         le_encoded_round: ArrayVariable<ByteVariable, 8>,
     ) -> BoolVariable {
@@ -97,7 +97,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         self.is_equal(le_encoded_round[7].as_be_bits()[0], zero)
     }
 
-    fn verify_validator_signature_data_round_zero(
+    fn is_signed_message_valid_round_zero(
         &mut self,
         header: &TendermintHashVariable,
         height: &U64Variable,
@@ -151,7 +151,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         self.is_equal(*signed, is_valid_message)
     }
 
-    fn verify_validator_signature_data_round_nonzero(
+    fn is_signed_message_valid_round_nonzero(
         &mut self,
         header: &TendermintHashVariable,
         height: &U64Variable,
@@ -201,7 +201,7 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
                 message[ROUND_START_IDX..ROUND_START_IDX + 8].to_vec(),
             ),
         );
-        let is_nonnegative_round = self.verify_non_negative_round(le_encoded_round);
+        let is_nonnegative_round = self.is_round_non_negative(le_encoded_round);
 
         // Verify every signed validator's message includes the header hash.
         let extracted_header: Bytes32Variable =
@@ -248,12 +248,11 @@ impl<L: PlonkParameters<D>, const D: usize> TendermintValidator<L, D> for Circui
         let true_v = self._true();
         let is_round_zero = self.is_equal(*round, zero);
 
-        let is_valid_round_nonzero = self.verify_validator_signature_data_round_nonzero(
+        let is_valid_round_nonzero = self.is_signed_message_valid_round_nonzero(
             header, height, round, message, is_enabled, signed,
         );
-        let is_valid_round_zero = self.verify_validator_signature_data_round_zero(
-            header, height, message, is_enabled, signed,
-        );
+        let is_valid_round_zero =
+            self.is_signed_message_valid_round_zero(header, height, message, is_enabled, signed);
 
         let valid_check = self.select(is_round_zero, is_valid_round_zero, is_valid_round_nonzero);
         self.assert_is_equal(valid_check, true_v);
